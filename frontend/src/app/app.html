@@ -1,6 +1,6 @@
 @if (supabase.session()) {
   <nav class="top-nav">
-    <a class="brand" routerLink="/program">Loaded<span>.</span></a>
+    <a class="brand" routerLink="/program">Loaded<span>.</span> <span class="version">v{{ version }}</span></a>
     <div class="links">
       <a routerLink="/program" routerLinkActive="active">Program</a>
       <a routerLink="/checkins" routerLinkActive="active">Check-in</a>
@@ -12,3 +12,4 @@
 <div class="wrap">
   <router-outlet />
 </div>
+<footer class="app-footer">v{{ version }}</footer>

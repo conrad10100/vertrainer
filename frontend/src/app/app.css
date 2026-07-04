@@ -1,0 +1,15 @@
+.top-nav .brand .version {
+  font-size: 11px;
+  color: var(--graphite);
+  font-weight: 400;
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+
+.app-footer {
+  text-align: center;
+  padding: 16px 0 24px;
+  font-size: 11px;
+  color: var(--graphite);
+  opacity: 0.6;
+}
