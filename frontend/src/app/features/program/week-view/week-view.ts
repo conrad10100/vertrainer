@@ -77,7 +77,8 @@ export class WeekView implements OnInit {
   }
 
   isBodyweight(targetWeight: string): boolean {
-    return targetWeight?.trim().toLowerCase() === 'bodyweight';
+    // Claude appends box/drop height for jump variants, e.g. "Bodyweight (12 in box)".
+    return targetWeight?.trim().toLowerCase().startsWith('bodyweight') ?? false;
   }
 
   showWeightInput(ex: Exercise): boolean {
