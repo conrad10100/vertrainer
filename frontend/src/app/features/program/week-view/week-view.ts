@@ -2,7 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ProgramApi } from '../program';
-import { Program, Week } from '../../../shared/models/program.model';
+import { Exercise, Program, Week } from '../../../shared/models/program.model';
 import { ProgramIntake } from '../program-intake/program-intake';
 import { PhaseBadge } from '../phase-badge/phase-badge';
 
@@ -24,6 +24,7 @@ export class WeekView implements OnInit {
   openSwapKey: string | null = null;
   swapInputs: Record<string, string> = {};
   swappingKey: string | null = null;
+  private readonly revealedWeightIds = new Set<string>();
 
   activeWeek = computed<Week | null>(() => this.program()?.weeks[this.activeWeekIndex()] ?? null);
   prevWeek = computed<Week | null>(() => {
@@ -75,18 +76,34 @@ export class WeekView implements OnInit {
     return curNum - prevNum;
   }
 
-  async logExercise(exerciseId: string, weightStr: string, repsStr: string) {
+  isBodyweight(targetWeight: string): boolean {
+    return targetWeight?.trim().toLowerCase() === 'bodyweight';
+  }
+
+  showWeightInput(ex: Exercise): boolean {
+    return !this.isBodyweight(ex.targetWeight) || ex.loggedWeight !== null || this.revealedWeightIds.has(ex.id);
+  }
+
+  revealWeightInput(id: string) {
+    this.revealedWeightIds.add(id);
+  }
+
+  async logWeight(ex: Exercise, weightStr: string) {
+    const parsed = weightStr.trim() === '' ? null : parseFloat(weightStr);
+    await this.updateLog(ex, parsed != null && !isNaN(parsed) ? parsed : null, ex.loggedReps);
+  }
+
+  async logReps(ex: Exercise, repsStr: string) {
+    const parsed = repsStr.trim() === '' ? null : parseInt(repsStr, 10);
+    await this.updateLog(ex, ex.loggedWeight, parsed != null && !isNaN(parsed) ? parsed : null);
+  }
+
+  private async updateLog(ex: Exercise, loggedWeight: number | null, loggedReps: number | null) {
     const week = this.activeWeek();
     if (!week) return;
-    const loggedWeight = weightStr.trim() === '' ? null : parseFloat(weightStr);
-    const loggedReps = repsStr.trim() === '' ? null : parseInt(repsStr, 10);
-    const updated = await this.programApi.logExercise(
-      exerciseId,
-      loggedWeight != null && !isNaN(loggedWeight) ? loggedWeight : null,
-      loggedReps != null && !isNaN(loggedReps) ? loggedReps : null
-    );
+    const updated = await this.programApi.logExercise(ex.id, loggedWeight, loggedReps);
     for (const day of week.days) {
-      const idx = day.exercises.findIndex((e) => e.id === exerciseId);
+      const idx = day.exercises.findIndex((e) => e.id === ex.id);
       if (idx !== -1) {
         day.exercises[idx] = updated;
       }

@@ -313,6 +313,12 @@ textarea:focus { outline: 2px solid var(--brass-dim); outline-offset: 0; }
 }
 .log-field input:focus { outline: none; }
 .log-field.filled { border-color: var(--brass-dim); }
+.add-weight-link {
+  flex: 1; background: none; border: 1px dashed var(--line); border-radius: 4px;
+  padding: 6px 9px; color: var(--graphite); font-size: 11px; cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.add-weight-link:hover { color: var(--brass); border-color: var(--brass-dim); }
 
 .day-note-field { margin-top: 14px; }
 .day-note-field textarea { min-height: 50px; font-size: 12.5px; }

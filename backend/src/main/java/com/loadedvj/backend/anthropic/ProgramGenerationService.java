@@ -13,6 +13,8 @@ import com.loadedvj.backend.mesocycle.MesocycleCalculator.PhaseInfo;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+
 @Service
 public class ProgramGenerationService {
 
@@ -42,6 +44,12 @@ public class ProgramGenerationService {
             experience level) -- don't invent numbers disconnected from their profile. Each day should \
             have 4-6 exercises. Order days logically for recovery (don't stack the same movement \
             patterns back-to-back if days per week is high).
+
+            A key long-term strength benchmark for vertical jump development is a squat (back squat, or \
+            the closest heavy bilateral squat pattern in the program) at roughly 2x bodyweight -- this \
+            level of relative lower-body strength is strongly associated with elite jumping ability. Use \
+            this as the north star when setting the starting squat-pattern load: don't jump straight to \
+            it in week 1, but let it inform how much room there is to grow that lift over the program.
             """.formatted(phase.name(), phase.description());
 
         String user = """
@@ -50,6 +58,7 @@ public class ProgramGenerationService {
             - Target vertical: %s in
             - Height: %s in
             - Bodyweight: %s lb
+            - Long-term squat strength goal: %s
             - Days per week: %d
             - Experience level: %s
             - Additional context: %s
@@ -57,8 +66,8 @@ public class ProgramGenerationService {
             Build week 1 of my vertical jump program.
             """.formatted(
                 program.getCurrentVertical(), program.getTargetVertical(), nullToNone(program.getHeight()),
-                nullToNone(program.getBodyweight()), program.getDaysPerWeek(), program.getExperienceLevel(),
-                blankToNone(program.getNotes()));
+                nullToNone(program.getBodyweight()), squatTargetDisplay(program), program.getDaysPerWeek(),
+                program.getExperienceLevel(), blankToNone(program.getNotes()));
 
         StructuredMessageCreateParams<ProgramCreationResult> params = MessageCreateParams.builder()
             .model(model)
@@ -107,6 +116,11 @@ public class ProgramGenerationService {
             - Adherence history: if adherence has been consistently low across recent weeks, hold or reduce \
             volume rather than progressing it further, and use the day notes to figure out what's getting \
             in the way rather than assuming the prescription itself was fine.
+            - Long-term squat strength goal: work the primary squat-pattern lift toward roughly 2x \
+            bodyweight over time -- this is a strong predictor of vertical jump ability. If the athlete is \
+            well below that benchmark and recovery/adherence support it, don't be shy about progressing \
+            squat-pattern loads assertively; if they're already near or above it, prioritize power/reactive \
+            work over pure strength since further squat gains alone won't move the needle much more.
             """.formatted(
                 nextWeekNumber, info.cycleNumber(), phase.name(), phase.description(),
                 info.isDeload()
@@ -122,7 +136,7 @@ public class ProgramGenerationService {
 
         String user = """
             Athlete profile: height %s in, bodyweight %s lb, current vertical %s in, target vertical %s in, \
-            experience %s, %d days/week.
+            experience %s, %d days/week. Long-term squat strength goal: %s.
 
             Week %d results:
 
@@ -141,7 +155,7 @@ public class ProgramGenerationService {
             """.formatted(
                 nullToNone(program.getHeight()), nullToNone(program.getBodyweight()),
                 program.getCurrentVertical(), program.getTargetVertical(), program.getExperienceLevel(),
-                program.getDaysPerWeek(), nextWeekNumber - 1, logSummary,
+                program.getDaysPerWeek(), squatTargetDisplay(program), nextWeekNumber - 1, logSummary,
                 blankToNone(dayNotesSummary), blankToNone(checkinSummary), blankToNone(adherenceSummary),
                 nextWeekNumber);
 
@@ -205,6 +219,14 @@ public class ProgramGenerationService {
             .map(text -> text.text())
             .findFirst()
             .orElseThrow(() -> new IllegalStateException("Claude returned no replacement exercise"));
+    }
+
+    private static String squatTargetDisplay(Program program) {
+        if (program.getBodyweight() == null) {
+            return "unknown (bodyweight not provided)";
+        }
+        BigDecimal target = program.getBodyweight().multiply(BigDecimal.valueOf(2));
+        return "~" + target.stripTrailingZeros().toPlainString() + " lb (2x bodyweight)";
     }
 
     private static String nullToNone(Object value) {
