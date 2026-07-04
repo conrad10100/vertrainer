@@ -1,0 +1,7 @@
+<div class="phase-banner">
+  <span class="cycle-tag">Cycle {{ cycleNumber() }} · {{ phase() }}</span>
+  <span class="phase-desc">{{ description() }}</span>
+  @if (deload()) {
+    <span class="deload-badge">Deload week</span>
+  }
+</div>

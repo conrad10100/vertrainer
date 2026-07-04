@@ -1,0 +1,140 @@
+@if (loading()) {
+  <div class="loading">
+    <div class="plate-spin"></div>
+    <p>Loading your program...</p>
+  </div>
+} @else if (!program()) {
+  <app-program-intake (created)="onProgramCreated($event)" />
+} @else {
+  @let p = program()!;
+  @let week = activeWeek()!;
+
+  <div class="program-head">
+    <div>
+      <h2 class="program-name">{{ p.programName }}</h2>
+      <p class="program-meta">
+        {{ p.currentVertical }}" → <b>{{ p.targetVertical }}"</b> vertical · {{ p.daysPerWeek }}x/week ·
+        {{ p.experienceLevel }}
+      </p>
+    </div>
+  </div>
+
+  <app-phase-badge [cycleNumber]="week.cycleNumber" [phase]="week.phase" [deload]="week.deload" />
+
+  <div class="week-tabs">
+    @for (w of p.weeks; track w.id; let i = $index) {
+      <button
+        class="week-tab"
+        [class.active]="i === activeWeekIndex()"
+        [class.deload]="w.deload"
+        (click)="selectWeek(i)"
+      >
+        <span class="week-label">WK {{ w.weekNumber }}</span>
+        <span class="phase-abbr">{{ w.phase }}</span>
+      </button>
+    }
+  </div>
+
+  <div class="days-grid">
+    @for (day of week.days; track day.id; let dayIdx = $index) {
+      <div class="day-card">
+        <p class="day-label">{{ day.dayLabel }}</p>
+        <p class="day-focus">{{ day.focus }}</p>
+
+        @for (ex of day.exercises; track ex.id; let exIdx = $index) {
+          @let key = ex.id;
+          @let delta = weightDelta(dayIdx, ex.name, ex.targetWeight);
+          <div class="exercise">
+            <p class="ex-name">{{ ex.name }}</p>
+            <div class="ex-row">
+              <span class="ex-scheme">{{ ex.sets }} × {{ ex.reps }} prescribed</span>
+              <span class="ex-weight">
+                {{ ex.targetWeight }}
+                @if (delta !== null) {
+                  <span class="delta up">▲ +{{ delta.toFixed(0) }}</span>
+                }
+              </span>
+            </div>
+            @if (ex.notes) {
+              <p class="ex-note">{{ ex.notes }}</p>
+            }
+
+            <div class="log-row">
+              <div class="log-field" [class.filled]="ex.loggedWeight !== null">
+                <label>DID</label>
+                <input
+                  type="text"
+                  inputmode="decimal"
+                  placeholder="wt"
+                  [value]="ex.loggedWeight ?? ''"
+                  #wtInput
+                  (change)="logExercise(ex.id, wtInput.value, repsInput.value)"
+                />
+              </div>
+              <div class="log-field" [class.filled]="ex.loggedReps !== null">
+                <label>REPS</label>
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="reps"
+                  [value]="ex.loggedReps ?? ''"
+                  #repsInput
+                  (change)="logExercise(ex.id, wtInput.value, repsInput.value)"
+                />
+              </div>
+            </div>
+
+            @if (openSwapKey !== key) {
+              <div class="exercise-actions">
+                <button class="swap-toggle" (click)="toggleSwap(key)">Swap this exercise →</button>
+                <button class="remove-toggle" (click)="removeExercise(dayIdx, ex.id)">Remove</button>
+              </div>
+            } @else {
+              <div class="swap-panel">
+                <input
+                  type="text"
+                  placeholder="e.g. replace with front squats, my knee doesn't like this"
+                  [(ngModel)]="swapInputs[key]"
+                  (keydown.enter)="confirmSwap(ex.id, key)"
+                />
+                <button
+                  class="swap-confirm-btn"
+                  [disabled]="swappingKey === key"
+                  (click)="confirmSwap(ex.id, key)"
+                >
+                  {{ swappingKey === key ? '...' : 'Swap' }}
+                </button>
+              </div>
+            }
+          </div>
+        }
+
+        <div class="day-note-field">
+          <label>Anything Claude should know for next week? (travel, no equipment, etc.)</label>
+          <textarea
+            placeholder="e.g. I'll be on vacation next week with no gym access"
+            [value]="day.athleteNote ?? ''"
+            #noteInput
+            (blur)="saveDayNote(day.id, noteInput.value)"
+          ></textarea>
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (isLatestWeek()) {
+    <div class="next-week-bar">
+      <button class="secondary-btn" [disabled]="generatingNext()" (click)="buildNextWeek()">
+        @if (generatingNext()) {
+          <span class="mini-spin"></span>Building week {{ week.weekNumber + 1 }}...
+        } @else {
+          Log done — build week {{ week.weekNumber + 1 }}
+        }
+      </button>
+    </div>
+  }
+
+  @if (errorMsg()) {
+    <div class="error-box" style="margin-top: 20px">{{ errorMsg() }}</div>
+  }
+}

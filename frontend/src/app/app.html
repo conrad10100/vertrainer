@@ -1,0 +1,14 @@
+@if (supabase.session()) {
+  <nav class="top-nav">
+    <a class="brand" routerLink="/program">Loaded<span>.</span></a>
+    <div class="links">
+      <a routerLink="/program" routerLinkActive="active">Program</a>
+      <a routerLink="/checkins" routerLinkActive="active">Check-in</a>
+      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+      <button class="link-btn" (click)="logout()">Log out</button>
+    </div>
+  </nav>
+}
+<div class="wrap">
+  <router-outlet />
+</div>

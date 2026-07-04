@@ -1,0 +1,30 @@
+<div class="hero">
+  <p class="eyebrow">Progress check-in</p>
+  <h1>Measure your <span>vertical.</span></h1>
+  <p class="sub">Log a fresh vertical jump measurement any time — these points show up on your dashboard.</p>
+</div>
+
+<div class="clipboard">
+  <form (ngSubmit)="submit()">
+    <div class="field">
+      <label>Vertical jump</label>
+      <div class="unit-input">
+        <input type="number" name="inches" [(ngModel)]="inches" placeholder="28" required />
+        <span>in</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea name="notes" [(ngModel)]="notes" placeholder="How'd the test feel?"></textarea>
+    </div>
+    <button class="go-btn" type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Saving...' : 'Log check-in' }}
+    </button>
+    @if (successMsg()) {
+      <p class="sub" style="color: var(--good); margin-top: 14px">{{ successMsg() }}</p>
+    }
+    @if (errorMsg()) {
+      <div class="error-box">{{ errorMsg() }}</div>
+    }
+  </form>
+</div>

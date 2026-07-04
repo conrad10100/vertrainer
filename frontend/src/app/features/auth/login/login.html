@@ -1,0 +1,30 @@
+<div class="hero">
+  <p class="eyebrow">Loaded</p>
+  <h1>Welcome <span>back.</span></h1>
+  <p class="sub">Log in to keep building your vertical jump program.</p>
+</div>
+
+<div class="clipboard">
+  <form (ngSubmit)="submit()">
+    <div class="field">
+      <label>Email</label>
+      <div class="unit-input">
+        <input type="email" name="email" [(ngModel)]="email" required autocomplete="email" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <div class="unit-input">
+        <input type="password" name="password" [(ngModel)]="password" required autocomplete="current-password" />
+      </div>
+    </div>
+    <button class="go-btn" type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Logging in...' : 'Log in' }}
+    </button>
+    @if (errorMsg()) {
+      <div class="error-box">{{ errorMsg() }}</div>
+    }
+  </form>
+  <hr class="divider" />
+  <p class="sub">No account yet? <a routerLink="/signup" style="color: var(--brass)">Sign up</a></p>
+</div>

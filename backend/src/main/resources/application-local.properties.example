@@ -1,0 +1,22 @@
+# Copy this file to application-local.properties (gitignored) and fill in
+# real values from your Supabase project + Anthropic console. Run the app
+# with --spring.profiles.active=local to load it.
+
+# Project Settings -> Database -> Connection string -> URI (non-pooled), port 5432
+DB_URL=jdbc:postgresql://db.<project-ref>.supabase.co:5432/postgres
+DB_USERNAME=postgres
+DB_PASSWORD=
+
+# Project Settings -> API -> JWT Settings
+# If your project uses the current default (asymmetric JWKS signing):
+SUPABASE_JWKS_URI=https://<project-ref>.supabase.co/auth/v1/jwks
+SUPABASE_ISSUER=https://<project-ref>.supabase.co/auth/v1
+# If your project instead shows a "Legacy JWT Secret" in Console, set this
+# and leave the two above blank:
+SUPABASE_LEGACY_JWT_SECRET=
+
+# console.anthropic.com
+ANTHROPIC_API_KEY=
+
+# Comma-separated emails allowed to call /api/admin/* (usage/limits dashboard)
+ADMIN_EMAILS=

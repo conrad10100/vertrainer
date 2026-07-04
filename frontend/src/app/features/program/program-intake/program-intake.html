@@ -1,0 +1,83 @@
+<div class="hero">
+  <p class="eyebrow">Vertical Jump Program Builder</p>
+  <h1>Add inches<br />to your <span>vertical.</span></h1>
+  <p class="sub">
+    Give us your stats and we'll build a periodized program — strength, then power, then reactive
+    work, cycling every 4 weeks — with starting weights suggested from your own numbers. Log what
+    you lift and each week adapts.
+  </p>
+</div>
+
+<div class="clipboard">
+  <form (ngSubmit)="submit()">
+    <div class="field">
+      <label>Your stats</label>
+      <div class="stat-grid">
+        <div class="stat-field">
+          <label>Current vertical</label>
+          <div class="unit-input">
+            <input type="number" name="currentVertical" [(ngModel)]="currentVertical" placeholder="26" required />
+            <span>in</span>
+          </div>
+        </div>
+        <div class="stat-field">
+          <label>Target vertical</label>
+          <div class="unit-input">
+            <input type="number" name="targetVertical" [(ngModel)]="targetVertical" placeholder="36" required />
+            <span>in</span>
+          </div>
+        </div>
+        <div class="stat-field">
+          <label>Height</label>
+          <div class="unit-input">
+            <input type="number" name="height" [(ngModel)]="height" placeholder="67" />
+            <span>in</span>
+          </div>
+        </div>
+        <div class="stat-field">
+          <label>Bodyweight</label>
+          <div class="unit-input">
+            <input type="number" name="bodyweight" [(ngModel)]="bodyweight" placeholder="155" />
+            <span>lb</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="field">
+      <label>Days per week</label>
+      <div class="chip-row">
+        @for (d of dayOptions; track d) {
+          <div class="chip" [class.active]="d === days" (click)="days = d">{{ d }}</div>
+        }
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Experience level</label>
+      <div class="chip-row">
+        @for (level of experienceLevels; track level) {
+          <div class="chip" [class.active]="level === experience" (click)="experience = level">{{ level }}</div>
+        }
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Anything else? (optional)</label>
+      <textarea
+        name="notes"
+        [(ngModel)]="notes"
+        placeholder="Current lifts, equipment access, injuries to work around..."
+      ></textarea>
+    </div>
+
+    <button class="go-btn" type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Building your program...' : 'Build my program' }}
+    </button>
+    @if (errorMsg()) {
+      <div class="error-box">{{ errorMsg() }}</div>
+    }
+  </form>
+</div>
