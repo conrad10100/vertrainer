@@ -8,6 +8,7 @@ import com.loadedvj.backend.anthropic.ProgramGenerationService;
 import com.loadedvj.backend.domain.Day;
 import com.loadedvj.backend.domain.Exercise;
 import com.loadedvj.backend.domain.Program;
+import com.loadedvj.backend.domain.VerticalCheckin;
 import com.loadedvj.backend.domain.Week;
 import com.loadedvj.backend.dto.ProgramDtos.*;
 import com.loadedvj.backend.mesocycle.MesocycleCalculator;
@@ -15,12 +16,15 @@ import com.loadedvj.backend.mesocycle.MesocycleCalculator.PhaseInfo;
 import com.loadedvj.backend.repository.DayRepository;
 import com.loadedvj.backend.repository.ExerciseRepository;
 import com.loadedvj.backend.repository.ProgramRepository;
+import com.loadedvj.backend.repository.VerticalCheckinRepository;
 import com.loadedvj.backend.repository.WeekRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,20 +32,25 @@ import java.util.UUID;
 @Transactional
 public class ProgramService {
 
+    private static final int MAX_CHECKINS_IN_SUMMARY = 6;
+
     private final ProgramRepository programRepository;
     private final WeekRepository weekRepository;
     private final DayRepository dayRepository;
     private final ExerciseRepository exerciseRepository;
+    private final VerticalCheckinRepository checkinRepository;
     private final ProgramGenerationService generationService;
     private final UsageLimitService usageLimitService;
 
     public ProgramService(ProgramRepository programRepository, WeekRepository weekRepository,
                            DayRepository dayRepository, ExerciseRepository exerciseRepository,
+                           VerticalCheckinRepository checkinRepository,
                            ProgramGenerationService generationService, UsageLimitService usageLimitService) {
         this.programRepository = programRepository;
         this.weekRepository = weekRepository;
         this.dayRepository = dayRepository;
         this.exerciseRepository = exerciseRepository;
+        this.checkinRepository = checkinRepository;
         this.generationService = generationService;
         this.usageLimitService = usageLimitService;
     }
@@ -64,6 +73,7 @@ public class ProgramService {
         program.setActive(true);
 
         ProgramCreationResult result = generationService.createFirstWeek(program);
+        validateGeneratedWeek(result.programName(), result.days(), req.daysPerWeek());
         program.setProgramName(result.programName());
 
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(1);
@@ -88,8 +98,12 @@ public class ProgramService {
         int nextWeekNumber = lastWeek.getWeekNumber() + 1;
         String logSummary = buildLogSummary(lastWeek);
         String dayNotesSummary = buildDayNotesSummary(lastWeek);
+        String checkinSummary = buildCheckinSummary(userId);
+        String adherenceSummary = buildAdherenceSummary(program);
 
-        NextWeekResult result = generationService.generateNextWeek(program, nextWeekNumber, logSummary, dayNotesSummary);
+        NextWeekResult result = generationService.generateNextWeek(program, nextWeekNumber, logSummary,
+            dayNotesSummary, checkinSummary, adherenceSummary);
+        validateGeneratedWeek(null, result.days(), program.getDaysPerWeek());
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
         Week week = buildWeek(nextWeekNumber, info, result.days());
         program.addWeek(week);
@@ -220,6 +234,69 @@ public class ProgramService {
             }
         }
         return sb.isEmpty() ? "" : sb.toString();
+    }
+
+    /**
+     * Guards against a truncated/degenerate structured-output response (e.g. thinking tokens
+     * eating into max_tokens) getting persisted as a broken program -- fail loudly instead.
+     * programName is only checked when non-null (first-week creation; next-week generation
+     * doesn't return one).
+     */
+    private void validateGeneratedWeek(String programName, List<DayGen> days, int expectedDayCount) {
+        if (programName != null && programName.isBlank()) {
+            throw new IllegalStateException("Claude returned an empty program name");
+        }
+        if (days.size() != expectedDayCount) {
+            throw new IllegalStateException(
+                "Claude returned " + days.size() + " day(s), expected " + expectedDayCount);
+        }
+        for (DayGen day : days) {
+            if (day.exercises().isEmpty()) {
+                throw new IllegalStateException("Claude returned a day with no exercises: " + day.dayLabel());
+            }
+        }
+    }
+
+    private String buildCheckinSummary(UUID userId) {
+        List<VerticalCheckin> checkins = checkinRepository.findByUserIdOrderByRecordedAtAsc(userId);
+        if (checkins.isEmpty()) {
+            return "";
+        }
+        List<VerticalCheckin> recent = checkins.size() > MAX_CHECKINS_IN_SUMMARY
+            ? checkins.subList(checkins.size() - MAX_CHECKINS_IN_SUMMARY, checkins.size())
+            : checkins;
+
+        StringBuilder sb = new StringBuilder();
+        for (VerticalCheckin c : recent) {
+            sb.append(DateTimeFormatter.ISO_LOCAL_DATE.format(c.getRecordedAt().atZone(ZoneOffset.UTC)))
+                .append(": ").append(c.getInches()).append("in");
+            if (c.getNotes() != null && !c.getNotes().isBlank()) {
+                sb.append(" (").append(c.getNotes()).append(")");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    private String buildAdherenceSummary(Program program) {
+        StringBuilder sb = new StringBuilder();
+        for (Week week : program.getWeeks()) {
+            int total = 0;
+            int logged = 0;
+            for (Day day : week.getDays()) {
+                for (Exercise ex : day.getExercises()) {
+                    total++;
+                    if (ex.getLoggedWeight() != null || ex.getLoggedReps() != null) {
+                        logged++;
+                    }
+                }
+            }
+            if (total > 0) {
+                int pct = Math.round(100f * logged / total);
+                sb.append("Week ").append(week.getWeekNumber()).append(": ").append(pct).append("% logged\n");
+            }
+        }
+        return sb.toString();
     }
 
     private ProgramResponse toResponse(Program program) {

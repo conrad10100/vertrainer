@@ -62,7 +62,7 @@ public class ProgramGenerationService {
 
         StructuredMessageCreateParams<ProgramCreationResult> params = MessageCreateParams.builder()
             .model(model)
-            .maxTokens(4000L)
+            .maxTokens(8000L)
             .system(system)
             .outputConfig(ProgramCreationResult.class)
             .addUserMessage(user)
@@ -76,7 +76,8 @@ public class ProgramGenerationService {
     }
 
     public NextWeekResult generateNextWeek(Program program, int nextWeekNumber, String logSummary,
-                                            String dayNotesSummary) {
+                                            String dayNotesSummary, String checkinSummary,
+                                            String adherenceSummary) {
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
         PhaseInfo prevInfo = MesocycleCalculator.getPhaseInfo(nextWeekNumber - 1);
         boolean phaseChanged = !info.phase().name().equals(prevInfo.phase().name());
@@ -96,6 +97,16 @@ public class ProgramGenerationService {
             jumps, or depth jumps as phases shift toward power/reactive work), but keep continuity where \
             it makes sense for tracking. If the athlete added day-specific context (travel, no equipment \
             access, an injury, etc.), adapt that day's exercises and loading accordingly -- do not ignore it.
+
+            Also weigh the athlete's longer-term trend, not just this single week:
+            - Vertical jump check-in history: if measurements have stalled or regressed across multiple \
+            check-ins despite good adherence, don't just continue the same progression -- make a more \
+            assertive change (new exercise variations, a bigger shift toward reactive/power work, or an \
+            extra deload) since the current approach isn't producing results. If check-ins show steady \
+            improvement, the current approach is working -- continue it.
+            - Adherence history: if adherence has been consistently low across recent weeks, hold or reduce \
+            volume rather than progressing it further, and use the day notes to figure out what's getting \
+            in the way rather than assuming the prescription itself was fine.
             """.formatted(
                 nextWeekNumber, info.cycleNumber(), phase.name(), phase.description(),
                 info.isDeload()
@@ -120,16 +131,23 @@ public class ProgramGenerationService {
             Day-specific context the athlete added for the upcoming week:
             %s
 
+            Vertical jump check-in history:
+            %s
+
+            Adherence by week so far this program:
+            %s
+
             Build week %d.
             """.formatted(
                 nullToNone(program.getHeight()), nullToNone(program.getBodyweight()),
                 program.getCurrentVertical(), program.getTargetVertical(), program.getExperienceLevel(),
                 program.getDaysPerWeek(), nextWeekNumber - 1, logSummary,
-                blankToNone(dayNotesSummary), nextWeekNumber);
+                blankToNone(dayNotesSummary), blankToNone(checkinSummary), blankToNone(adherenceSummary),
+                nextWeekNumber);
 
         StructuredMessageCreateParams<NextWeekResult> params = MessageCreateParams.builder()
             .model(model)
-            .maxTokens(4000L)
+            .maxTokens(8000L)
             .system(system)
             .outputConfig(NextWeekResult.class)
             .addUserMessage(user)
@@ -176,7 +194,7 @@ public class ProgramGenerationService {
 
         StructuredMessageCreateParams<ExerciseGen> params = MessageCreateParams.builder()
             .model(model)
-            .maxTokens(1000L)
+            .maxTokens(2000L)
             .system(system)
             .outputConfig(ExerciseGen.class)
             .addUserMessage(user)
