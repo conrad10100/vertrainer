@@ -20,6 +20,7 @@ export class WeekView implements OnInit {
   activeWeekIndex = signal(0);
   generatingNext = signal(false);
   errorMsg = signal('');
+  restarting = signal(false);
 
   openSwapKey: string | null = null;
   swapInputs: Record<string, string> = {};
@@ -58,6 +59,17 @@ export class WeekView implements OnInit {
   onProgramCreated(program: Program) {
     this.program.set(program);
     this.activeWeekIndex.set(0);
+    this.restarting.set(false);
+  }
+
+  requestRestart() {
+    if (confirm('Start a new program? Your current one will be archived (not deleted) and replaced.')) {
+      this.restarting.set(true);
+    }
+  }
+
+  cancelRestart() {
+    this.restarting.set(false);
   }
 
   selectWeek(i: number) {

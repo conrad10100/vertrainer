@@ -3,8 +3,13 @@
     <div class="plate-spin"></div>
     <p>Loading your program...</p>
   </div>
-} @else if (!program()) {
+} @else if (!program() || restarting()) {
   <app-program-intake (created)="onProgramCreated($event)" />
+  @if (program() && restarting()) {
+    <button type="button" class="cancel-restart-link" (click)="cancelRestart()">
+      ← Cancel, keep my current program
+    </button>
+  }
 } @else {
   @let p = program()!;
   @let week = activeWeek()!;
@@ -17,6 +22,7 @@
         {{ p.experienceLevel }}
       </p>
     </div>
+    <button type="button" class="restart-link" (click)="requestRestart()">Restart program</button>
   </div>
 
   <app-phase-badge [cycleNumber]="week.cycleNumber" [phase]="week.phase" [deload]="week.deload" />
