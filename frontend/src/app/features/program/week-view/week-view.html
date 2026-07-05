@@ -82,7 +82,7 @@
               </div>
             </div>
 
-            @if (openSwapKey !== key) {
+            @if (openSwapKey() !== key) {
               <div class="exercise-actions">
                 <button class="swap-toggle" (click)="toggleSwap(key)">Swap this exercise →</button>
                 <button class="remove-toggle" (click)="removeExercise(dayIdx, ex.id)">Remove</button>
@@ -97,10 +97,10 @@
                 />
                 <button
                   class="swap-confirm-btn"
-                  [disabled]="swappingKey === key"
+                  [disabled]="swappingKey() === key"
                   (click)="confirmSwap(ex.id, key)"
                 >
-                  {{ swappingKey === key ? '...' : 'Swap' }}
+                  {{ swappingKey() === key ? '...' : 'Swap' }}
                 </button>
               </div>
             }

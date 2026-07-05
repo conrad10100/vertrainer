@@ -32,7 +32,13 @@ public class ProgramGenerationService {
         should be core/trunk work (planks, anti-rotation holds, weighted carries) supporting those \
         movements. Balance heavy strength work with elastic, high-velocity work -- the goal is an \
         athlete who is strong AND fast; never trade away speed and elasticity for pure maximal \
-        strength.""";
+        strength.
+
+        Within a single day, avoid redundancy: don't stack multiple exercises that train the same \
+        primary muscle group in the same way (e.g. Romanian deadlift + single-leg Romanian deadlift + \
+        Nordic hamstring curl is three hamstring-dominant exercises and should never happen on one day). \
+        Each day's exercises should target a mix of muscle groups relevant to jumping -- glutes, \
+        hamstrings, quads, and calves -- rather than piling up variations of the same movement pattern.""";
 
     private final AnthropicClient client;
     private final String model;

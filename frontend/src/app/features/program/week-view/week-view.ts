@@ -22,9 +22,9 @@ export class WeekView implements OnInit {
   errorMsg = signal('');
   restarting = signal(false);
 
-  openSwapKey: string | null = null;
+  openSwapKey = signal<string | null>(null);
   swapInputs: Record<string, string> = {};
-  swappingKey: string | null = null;
+  swappingKey = signal<string | null>(null);
   private readonly revealedWeightIds = new Set<string>();
 
   private readonly drafts = new Map<string, { weight: string; reps: string }>();
@@ -74,7 +74,18 @@ export class WeekView implements OnInit {
 
   selectWeek(i: number) {
     this.activeWeekIndex.set(i);
-    this.openSwapKey = null;
+    this.openSwapKey.set(null);
+  }
+
+  // Nested mutations of the exercises/day-notes inside `program()` (swap, remove,
+  // note edits) happen after an `await`, outside the DOM event handler's synchronous
+  // scope -- in this zoneless app, that means no re-render happens unless some
+  // signal is actually written afterward. Re-setting a shallow clone of the top-level
+  // Program forces `program` (and anything computed from it, like activeWeek) to
+  // notify, so the already-mutated nested data gets picked up and rendered.
+  private touchProgram() {
+    const p = this.program();
+    if (p) this.program.set({ ...p });
   }
 
   previousTargetWeight(dayIndex: number, exerciseName: string): string | null {
@@ -156,6 +167,7 @@ export class WeekView implements OnInit {
           }
         }
       }
+      this.touchProgram();
       this.markDaySaved(day.id, true);
     } catch (err) {
       console.error(err);
@@ -166,7 +178,7 @@ export class WeekView implements OnInit {
   }
 
   toggleSwap(key: string) {
-    this.openSwapKey = this.openSwapKey === key ? null : key;
+    this.openSwapKey.update((k) => (k === key ? null : key));
   }
 
   async confirmSwap(exerciseId: string, key: string) {
@@ -174,7 +186,7 @@ export class WeekView implements OnInit {
     if (!requestText) return;
     const week = this.activeWeek();
     if (!week) return;
-    this.swappingKey = key;
+    this.swappingKey.set(key);
     try {
       const replacement = await this.programApi.swapExercise(exerciseId, requestText);
       for (const day of week.days) {
@@ -185,12 +197,13 @@ export class WeekView implements OnInit {
       }
       this.drafts.delete(exerciseId);
       delete this.swapInputs[key];
-      this.openSwapKey = null;
+      this.openSwapKey.set(null);
+      this.touchProgram();
     } catch (err) {
       console.error(err);
       this.errorMsg.set("Couldn't swap that exercise — try again.");
     } finally {
-      this.swappingKey = null;
+      this.swappingKey.set(null);
     }
   }
 
@@ -201,6 +214,7 @@ export class WeekView implements OnInit {
     const day = week.days[dayIndex];
     day.exercises = day.exercises.filter((e) => e.id !== exerciseId);
     this.drafts.delete(exerciseId);
+    this.touchProgram();
   }
 
   async saveDayNote(dayId: string, note: string) {
@@ -209,6 +223,7 @@ export class WeekView implements OnInit {
     const updated = await this.programApi.updateDayNote(dayId, note);
     const day = week.days.find((d) => d.id === dayId);
     if (day) day.athleteNote = updated.athleteNote;
+    this.touchProgram();
   }
 
   async buildNextWeek() {
