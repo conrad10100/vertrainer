@@ -320,6 +320,16 @@ textarea:focus { outline: 2px solid var(--brass-dim); outline-offset: 0; }
 }
 .add-weight-link:hover { color: var(--brass); border-color: var(--brass-dim); }
 
+.save-day-btn {
+  width: 100%; margin-top: 14px; background: none; border: 1px solid var(--brass-dim);
+  color: var(--brass); border-radius: 5px; font-family: 'Oswald', sans-serif;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: 12.5px;
+  padding: 10px; cursor: pointer; transition: all .15s ease;
+}
+.save-day-btn:hover { background: rgba(198, 150, 58, 0.1); }
+.save-day-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.save-day-btn.saved { border-color: var(--good); color: var(--good); }
+
 .day-note-field { margin-top: 14px; }
 .day-note-field textarea { min-height: 50px; font-size: 12.5px; }
 

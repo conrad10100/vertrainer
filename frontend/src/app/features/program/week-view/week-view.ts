@@ -2,7 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ProgramApi } from '../program';
-import { Exercise, Program, Week } from '../../../shared/models/program.model';
+import { Day, Exercise, Program, Week } from '../../../shared/models/program.model';
 import { ProgramIntake } from '../program-intake/program-intake';
 import { PhaseBadge } from '../phase-badge/phase-badge';
 
@@ -25,6 +25,10 @@ export class WeekView implements OnInit {
   swapInputs: Record<string, string> = {};
   swappingKey: string | null = null;
   private readonly revealedWeightIds = new Set<string>();
+
+  private readonly drafts = new Map<string, { weight: string; reps: string }>();
+  savingDayId = signal<string | null>(null);
+  private readonly savedDayIds = signal<ReadonlySet<string>>(new Set());
 
   activeWeek = computed<Week | null>(() => this.program()?.weeks[this.activeWeekIndex()] ?? null);
   prevWeek = computed<Week | null>(() => {
@@ -89,25 +93,63 @@ export class WeekView implements OnInit {
     this.revealedWeightIds.add(id);
   }
 
-  async logWeight(ex: Exercise, weightStr: string) {
-    const parsed = weightStr.trim() === '' ? null : parseFloat(weightStr);
-    await this.updateLog(ex, parsed != null && !isNaN(parsed) ? parsed : null, ex.loggedReps);
+  // Draft values are typed locally and only sent to the server when the athlete
+  // taps "Save" for the day -- typing alone (with no explicit save) must not be
+  // able to lose data, unlike the old save-on-blur behavior.
+  draftFor(ex: Exercise): { weight: string; reps: string } {
+    let draft = this.drafts.get(ex.id);
+    if (!draft) {
+      draft = {
+        weight: ex.loggedWeight != null ? String(ex.loggedWeight) : '',
+        reps: ex.loggedReps != null ? String(ex.loggedReps) : '',
+      };
+      this.drafts.set(ex.id, draft);
+    }
+    return draft;
   }
 
-  async logReps(ex: Exercise, repsStr: string) {
-    const parsed = repsStr.trim() === '' ? null : parseInt(repsStr, 10);
-    await this.updateLog(ex, ex.loggedWeight, parsed != null && !isNaN(parsed) ? parsed : null);
+  isDaySaved(dayId: string): boolean {
+    return this.savedDayIds().has(dayId);
   }
 
-  private async updateLog(ex: Exercise, loggedWeight: number | null, loggedReps: number | null) {
-    const week = this.activeWeek();
-    if (!week) return;
-    const updated = await this.programApi.logExercise(ex.id, loggedWeight, loggedReps);
-    for (const day of week.days) {
-      const idx = day.exercises.findIndex((e) => e.id === ex.id);
-      if (idx !== -1) {
-        day.exercises[idx] = updated;
+  private markDaySaved(dayId: string, saved: boolean) {
+    this.savedDayIds.update((current) => {
+      const next = new Set(current);
+      if (saved) {
+        next.add(dayId);
+      } else {
+        next.delete(dayId);
       }
+      return next;
+    });
+  }
+
+  async saveDay(day: Day) {
+    this.savingDayId.set(day.id);
+    this.markDaySaved(day.id, false);
+    const week = this.activeWeek();
+    try {
+      for (const ex of day.exercises) {
+        const draft = this.draftFor(ex);
+        const weight = this.showWeightInput(ex)
+          ? parseOrNull(draft.weight, parseFloat)
+          : ex.loggedWeight;
+        const reps = parseOrNull(draft.reps, (s) => parseInt(s, 10));
+
+        const updated = await this.programApi.logExercise(ex.id, weight, reps);
+        if (week) {
+          const idx = day.exercises.findIndex((e) => e.id === ex.id);
+          if (idx !== -1) {
+            day.exercises[idx] = updated;
+          }
+        }
+      }
+      this.markDaySaved(day.id, true);
+    } catch (err) {
+      console.error(err);
+      this.errorMsg.set("Couldn't save that day — try again.");
+    } finally {
+      this.savingDayId.set(null);
     }
   }
 
@@ -129,6 +171,7 @@ export class WeekView implements OnInit {
           day.exercises[idx] = replacement;
         }
       }
+      this.drafts.delete(exerciseId);
       delete this.swapInputs[key];
       this.openSwapKey = null;
     } catch (err) {
@@ -145,6 +188,7 @@ export class WeekView implements OnInit {
     await this.programApi.removeExercise(exerciseId);
     const day = week.days[dayIndex];
     day.exercises = day.exercises.filter((e) => e.id !== exerciseId);
+    this.drafts.delete(exerciseId);
   }
 
   async saveDayNote(dayId: string, note: string) {
@@ -172,4 +216,10 @@ export class WeekView implements OnInit {
       this.generatingNext.set(false);
     }
   }
+}
+
+function parseOrNull(value: string, parser: (s: string) => number): number | null {
+  if (value.trim() === '') return null;
+  const parsed = parser(value);
+  return isNaN(parsed) ? null : parsed;
 }

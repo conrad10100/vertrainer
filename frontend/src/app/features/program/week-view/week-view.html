@@ -63,13 +63,7 @@
               @if (showWeightInput(ex)) {
                 <div class="log-field" [class.filled]="ex.loggedWeight !== null">
                   <label>DID</label>
-                  <input
-                    type="text"
-                    inputmode="decimal"
-                    placeholder="wt"
-                    [value]="ex.loggedWeight ?? ''"
-                    (change)="logWeight(ex, $any($event.target).value)"
-                  />
+                  <input type="text" inputmode="decimal" placeholder="wt" [(ngModel)]="draftFor(ex).weight" />
                 </div>
               } @else {
                 <button type="button" class="add-weight-link" (click)="revealWeightInput(ex.id)">
@@ -78,13 +72,7 @@
               }
               <div class="log-field" [class.filled]="ex.loggedReps !== null">
                 <label>REPS</label>
-                <input
-                  type="text"
-                  inputmode="numeric"
-                  placeholder="reps"
-                  [value]="ex.loggedReps ?? ''"
-                  (change)="logReps(ex, $any($event.target).value)"
-                />
+                <input type="text" inputmode="numeric" placeholder="reps" [(ngModel)]="draftFor(ex).reps" />
               </div>
             </div>
 
@@ -112,6 +100,22 @@
             }
           </div>
         }
+
+        <button
+          type="button"
+          class="save-day-btn"
+          [class.saved]="isDaySaved(day.id)"
+          [disabled]="savingDayId() === day.id"
+          (click)="saveDay(day)"
+        >
+          @if (savingDayId() === day.id) {
+            <span class="mini-spin"></span>Saving...
+          } @else if (isDaySaved(day.id)) {
+            Saved ✓
+          } @else {
+            Save {{ day.dayLabel }}
+          }
+        </button>
 
         <div class="day-note-field">
           <label>Anything Claude should know for next week? (travel, no equipment, etc.)</label>
