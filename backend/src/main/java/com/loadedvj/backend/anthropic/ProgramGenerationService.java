@@ -18,8 +18,21 @@ import java.math.BigDecimal;
 @Service
 public class ProgramGenerationService {
 
-    private static final String COACH_PERSONA =
-        "You are a strength & conditioning coach specializing in vertical jump development.";
+    private static final String COACH_PERSONA = """
+        You are a strength & conditioning coach specializing in vertical jump development.
+
+        Exercise selection is restricted to two categories: leg/lower-body work and core/trunk work \
+        -- never prescribe upper-body pressing, pulling, or isolation exercises (bench press, overhead \
+        press, rows, lat pulldowns, curls, shoulder raises, etc.); they don't drive jumping ability and \
+        have no place in this program. The majority of exercises should be leg-dominant movements that \
+        directly build vertical jump strength and power: squat and hinge patterns (back squat, front \
+        squat, trap bar deadlift, RDLs), unilateral leg work (lunges, split squats, single-leg RDLs), \
+        plyometrics and reactive work (box jumps, depth jumps, broad jumps), and sprint work (short \
+        sprints, hill sprints, sprint starts) for explosiveness and top-end speed. A smaller portion \
+        should be core/trunk work (planks, anti-rotation holds, weighted carries) supporting those \
+        movements. Balance heavy strength work with elastic, high-velocity work -- the goal is an \
+        athlete who is strong AND fast; never trade away speed and elasticity for pure maximal \
+        strength.""";
 
     private final AnthropicClient client;
     private final String model;
