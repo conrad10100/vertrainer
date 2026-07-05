@@ -1,8 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, Input, OnChanges, OnInit, SimpleChanges, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ChartConfiguration, ChartData } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 import { DashboardApi } from '../dashboard';
+import { AdminApi } from '../../admin/admin';
+import { DashboardData } from '../../../shared/models/dashboard.model';
 
 const DARK_GRID = 'rgba(236, 232, 223, 0.08)';
 const BRASS = '#C6963A';
@@ -14,8 +16,13 @@ const CHALK = '#ECE8DF';
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
-export class Dashboard implements OnInit {
+export class Dashboard implements OnInit, OnChanges {
   private readonly dashboardApi = inject(DashboardApi);
+  private readonly adminApi = inject(AdminApi);
+
+  // When set (admin viewing another user's progress), data is fetched via the
+  // admin-gated endpoints instead of the current user's own.
+  @Input() targetUserId: string | null = null;
 
   loading = signal(true);
   exerciseNames = signal<string[]>([]);
@@ -35,10 +42,19 @@ export class Dashboard implements OnInit {
   };
 
   async ngOnInit() {
-    this.exerciseNames.set(await this.dashboardApi.listExerciseNames());
-    if (this.exerciseNames().length > 0) {
-      this.selectedExercise.set(this.exerciseNames()[0]);
+    await this.load();
+  }
+
+  async ngOnChanges(changes: SimpleChanges) {
+    if (changes['targetUserId'] && !changes['targetUserId'].firstChange) {
+      await this.load();
     }
+  }
+
+  private async load() {
+    this.loading.set(true);
+    this.exerciseNames.set(await this.listExerciseNames());
+    this.selectedExercise.set(this.exerciseNames().length > 0 ? this.exerciseNames()[0] : null);
     await this.refresh();
     this.loading.set(false);
   }
@@ -47,8 +63,20 @@ export class Dashboard implements OnInit {
     await this.refresh();
   }
 
+  private listExerciseNames(): Promise<string[]> {
+    return this.targetUserId
+      ? this.adminApi.listUserExercises(this.targetUserId)
+      : this.dashboardApi.listExerciseNames();
+  }
+
+  private fetchDashboard(): Promise<DashboardData> {
+    return this.targetUserId
+      ? this.adminApi.getUserDashboard(this.targetUserId, this.selectedExercise())
+      : this.dashboardApi.getDashboard(this.selectedExercise());
+  }
+
   private async refresh() {
-    const data = await this.dashboardApi.getDashboard(this.selectedExercise());
+    const data = await this.fetchDashboard();
 
     this.verticalChartData = {
       labels: data.verticalJumpHistory.map((p) => new Date(p.recordedAt).toLocaleDateString()),

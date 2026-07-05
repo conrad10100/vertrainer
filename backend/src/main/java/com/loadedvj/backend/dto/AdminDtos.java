@@ -4,5 +4,5 @@ public final class AdminDtos {
 
     private AdminDtos() { }
 
-    public record UserUsageResponse(String email, int dailyCallLimit, int usedToday) { }
+    public record UserUsageResponse(String userId, String email, int dailyCallLimit, int usedToday) { }
 }

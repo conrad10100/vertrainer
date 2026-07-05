@@ -5,6 +5,9 @@
       <a routerLink="/program" routerLinkActive="active">Program</a>
       <a routerLink="/checkins" routerLinkActive="active">Check-in</a>
       <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+      @if (isAdmin()) {
+        <a routerLink="/admin" routerLinkActive="active">Admin</a>
+      }
       <button class="link-btn" (click)="logout()">Log out</button>
     </div>
   </nav>

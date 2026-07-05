@@ -1,0 +1,48 @@
+@if (loading()) {
+  <div class="loading">
+    <div class="plate-spin"></div>
+    <p>Loading users...</p>
+  </div>
+} @else if (forbidden()) {
+  <div class="hero">
+    <p class="eyebrow">Admin</p>
+    <h1>Not <span>authorized.</span></h1>
+    <p class="sub">Your account doesn't have admin access.</p>
+  </div>
+} @else if (selectedUser(); as user) {
+  <button type="button" class="back-link" (click)="backToList()">← Back to users</button>
+  <div class="hero">
+    <p class="eyebrow">Admin · Viewing</p>
+    <h1>{{ user.email }}<span>'s progress.</span></h1>
+  </div>
+  <app-dashboard [targetUserId]="user.userId" />
+} @else {
+  <div class="hero">
+    <p class="eyebrow">Admin</p>
+    <h1>All <span>users.</span></h1>
+    <p class="sub">Daily AI-generation usage and limits, per user. Click a user to see their progress.</p>
+  </div>
+
+  <div class="chart-card">
+    <table class="admin-users-table">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Daily limit</th>
+          <th>Used today</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (u of users(); track u.userId) {
+          <tr>
+            <td>{{ u.email }}</td>
+            <td>{{ u.dailyCallLimit }}</td>
+            <td>{{ u.usedToday }}</td>
+            <td><button type="button" class="secondary-btn" (click)="viewUser(u)">View progress</button></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

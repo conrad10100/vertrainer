@@ -39,7 +39,7 @@ public class AdminService {
     @SuppressWarnings("unchecked")
     public List<UserUsageResponse> getUsageSummary() {
         List<Object[]> rows = entityManager.createNativeQuery("""
-                select au.email,
+                select au.id, au.email,
                        coalesce(ul.daily_call_limit, :defaultLimit) as daily_call_limit,
                        coalesce(uad.call_count, 0) as used_today
                 from auth.users au
@@ -52,7 +52,8 @@ public class AdminService {
             .getResultList();
 
         return rows.stream()
-            .map(row -> new UserUsageResponse((String) row[0], ((Number) row[1]).intValue(), ((Number) row[2]).intValue()))
+            .map(row -> new UserUsageResponse(
+                row[0].toString(), (String) row[1], ((Number) row[2]).intValue(), ((Number) row[3]).intValue()))
             .toList();
     }
 }
