@@ -1,5 +1,6 @@
 package com.loadedvj.backend.service;
 
+import com.loadedvj.backend.anthropic.GenerationFailedException;
 import com.loadedvj.backend.anthropic.GenerationModels.DayGen;
 import com.loadedvj.backend.anthropic.GenerationModels.ExerciseGen;
 import com.loadedvj.backend.anthropic.GenerationModels.NextWeekResult;
@@ -34,6 +35,7 @@ import java.util.UUID;
 public class ProgramService {
 
     private static final int MAX_CHECKINS_IN_SUMMARY = 6;
+    private static final int GENERATION_MAX_ATTEMPTS = 2;
 
     private final ProgramRepository programRepository;
     private final WeekRepository weekRepository;
@@ -73,8 +75,11 @@ public class ProgramService {
         program.setNotes(req.notes());
         program.setActive(true);
 
-        ProgramCreationResult result = generationService.createFirstWeek(program);
-        validateGeneratedWeek(result.programName(), result.days(), req.daysPerWeek());
+        ProgramCreationResult result = withGenerationRetry(() -> {
+            ProgramCreationResult r = generationService.createFirstWeek(program);
+            validateGeneratedWeek(r.programName(), r.days(), req.daysPerWeek());
+            return r;
+        });
         program.setProgramName(result.programName());
 
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(1);
@@ -103,9 +108,12 @@ public class ProgramService {
         String adherenceSummary = buildAdherenceSummary(program);
         BigDecimal bestSquatWeight = findBestSquatWeight(program);
 
-        NextWeekResult result = generationService.generateNextWeek(program, nextWeekNumber, logSummary,
-            dayNotesSummary, checkinSummary, adherenceSummary, bestSquatWeight);
-        validateGeneratedWeek(null, result.days(), program.getDaysPerWeek());
+        NextWeekResult result = withGenerationRetry(() -> {
+            NextWeekResult r = generationService.generateNextWeek(program, nextWeekNumber, logSummary,
+                dayNotesSummary, checkinSummary, adherenceSummary, bestSquatWeight);
+            validateGeneratedWeek(null, r.days(), program.getDaysPerWeek());
+            return r;
+        });
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
         Week week = buildWeek(nextWeekNumber, info, result.days());
         program.addWeek(week);
@@ -246,17 +254,33 @@ public class ProgramService {
      */
     private void validateGeneratedWeek(String programName, List<DayGen> days, int expectedDayCount) {
         if (programName != null && programName.isBlank()) {
-            throw new IllegalStateException("Claude returned an empty program name");
+            throw new GenerationFailedException("Claude returned an empty program name");
         }
         if (days.size() != expectedDayCount) {
-            throw new IllegalStateException(
+            throw new GenerationFailedException(
                 "Claude returned " + days.size() + " day(s), expected " + expectedDayCount);
         }
         for (DayGen day : days) {
             if (day.exercises().isEmpty()) {
-                throw new IllegalStateException("Claude returned a day with no exercises: " + day.dayLabel());
+                throw new GenerationFailedException("Claude returned a day with no exercises: " + day.dayLabel());
             }
         }
+    }
+
+    /**
+     * A truncated/invalid structured-output response is often transient (retrying the same
+     * prompt gives the model a fresh token budget), so retry once before surfacing the failure.
+     */
+    private <T> T withGenerationRetry(java.util.function.Supplier<T> attempt) {
+        GenerationFailedException lastFailure = null;
+        for (int i = 0; i < GENERATION_MAX_ATTEMPTS; i++) {
+            try {
+                return attempt.get();
+            } catch (GenerationFailedException e) {
+                lastFailure = e;
+            }
+        }
+        throw lastFailure;
     }
 
     private String buildCheckinSummary(UUID userId) {

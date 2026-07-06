@@ -100,7 +100,7 @@ public class ProgramGenerationService {
             .flatMap(block -> block.text().stream())
             .map(text -> text.text())
             .findFirst()
-            .orElseThrow(() -> new IllegalStateException("Claude returned no structured content for week 1"));
+            .orElseThrow(() -> new GenerationFailedException("Claude returned no structured content for week 1"));
     }
 
     public NextWeekResult generateNextWeek(Program program, int nextWeekNumber, String logSummary,
@@ -196,7 +196,7 @@ public class ProgramGenerationService {
             .flatMap(block -> block.text().stream())
             .map(text -> text.text())
             .findFirst()
-            .orElseThrow(() -> new IllegalStateException(
+            .orElseThrow(() -> new GenerationFailedException(
                 "Claude returned no structured content for week " + nextWeekNumber));
     }
 
@@ -243,7 +243,7 @@ public class ProgramGenerationService {
             .flatMap(block -> block.text().stream())
             .map(text -> text.text())
             .findFirst()
-            .orElseThrow(() -> new IllegalStateException("Claude returned no replacement exercise"));
+            .orElseThrow(() -> new GenerationFailedException("Claude returned no replacement exercise"));
     }
 
     private static String squatTargetDisplay(Program program) {
