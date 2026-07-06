@@ -238,7 +238,8 @@ export class WeekView implements OnInit {
       this.activeWeekIndex.set(program.weeks.length - 1);
     } catch (err) {
       console.error(err);
-      this.errorMsg.set("Couldn't build next week — try again.");
+      const backendMessage = err instanceof HttpErrorResponse ? err.error?.error : null;
+      this.errorMsg.set(backendMessage ?? "Couldn't build next week — try again.");
     } finally {
       this.generatingNext.set(false);
     }
