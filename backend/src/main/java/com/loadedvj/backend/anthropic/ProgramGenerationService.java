@@ -105,7 +105,7 @@ public class ProgramGenerationService {
 
     public NextWeekResult generateNextWeek(Program program, int nextWeekNumber, String logSummary,
                                             String dayNotesSummary, String checkinSummary,
-                                            String adherenceSummary) {
+                                            String adherenceSummary, BigDecimal bestSquatWeight) {
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
         PhaseInfo prevInfo = MesocycleCalculator.getPhaseInfo(nextWeekNumber - 1);
         boolean phaseChanged = !info.phase().name().equals(prevInfo.phase().name());
@@ -136,10 +136,13 @@ public class ProgramGenerationService {
             volume rather than progressing it further, and use the day notes to figure out what's getting \
             in the way rather than assuming the prescription itself was fine.
             - Long-term squat strength goal: work the primary squat-pattern lift toward roughly 2x \
-            bodyweight over time -- this is a strong predictor of vertical jump ability. If the athlete is \
-            well below that benchmark and recovery/adherence support it, don't be shy about progressing \
-            squat-pattern loads assertively; if they're already near or above it, prioritize power/reactive \
-            work over pure strength since further squat gains alone won't move the needle much more.
+            bodyweight over time -- this is a strong predictor of vertical jump ability. Back squat should \
+            stay the primary bilateral squat-pattern lift until that goal is met (see squat-pattern strength \
+            progress below); if they're well below the benchmark and recovery/adherence support it, don't be \
+            shy about progressing squat-pattern loads assertively. Once the goal has been met, shift primary \
+            emphasis away from back squat toward front squat, box squat, and half/partial squat variations, \
+            and prioritize power/reactive work over pure strength since further squat gains alone won't move \
+            the needle much more.
             """.formatted(
                 nextWeekNumber, info.cycleNumber(), phase.name(), phase.description(),
                 info.isDeload()
@@ -170,17 +173,20 @@ public class ProgramGenerationService {
             Adherence by week so far this program:
             %s
 
+            Squat-pattern strength progress:
+            %s
+
             Build week %d.
             """.formatted(
                 nullToNone(program.getHeight()), nullToNone(program.getBodyweight()),
                 program.getCurrentVertical(), program.getTargetVertical(), program.getExperienceLevel(),
                 program.getDaysPerWeek(), squatTargetDisplay(program), nextWeekNumber - 1, logSummary,
                 blankToNone(dayNotesSummary), blankToNone(checkinSummary), blankToNone(adherenceSummary),
-                nextWeekNumber);
+                squatProgressNote(program, bestSquatWeight), nextWeekNumber);
 
         StructuredMessageCreateParams<NextWeekResult> params = MessageCreateParams.builder()
             .model(model)
-            .maxTokens(8000L)
+            .maxTokens(12000L)
             .system(system)
             .outputConfig(NextWeekResult.class)
             .addUserMessage(user)
@@ -246,6 +252,36 @@ public class ProgramGenerationService {
         }
         BigDecimal target = program.getBodyweight().multiply(BigDecimal.valueOf(2));
         return "~" + target.stripTrailingZeros().toPlainString() + " lb (2x bodyweight)";
+    }
+
+    /**
+     * Describes where the athlete stands on the 2x-bodyweight squat-strength goal so the model can
+     * decide whether back squat should still be the primary bilateral squat-pattern lift, or whether
+     * it's time to shift toward front squat / box squat / half-squat variations.
+     */
+    private static String squatProgressNote(Program program, BigDecimal bestSquatWeight) {
+        if (bestSquatWeight == null) {
+            return "No squat weight logged yet -- back squat should remain the primary bilateral "
+                + "squat-pattern lift.";
+        }
+        if (program.getBodyweight() == null) {
+            return "Best logged squat: " + bestSquatWeight.stripTrailingZeros().toPlainString()
+                + " lb (bodyweight not provided, so goal progress is unknown -- keep back squat as the "
+                + "primary bilateral squat-pattern lift).";
+        }
+        BigDecimal goal = program.getBodyweight().multiply(BigDecimal.valueOf(2));
+        int pct = goal.signum() > 0
+            ? (int) Math.round(bestSquatWeight.doubleValue() / goal.doubleValue() * 100)
+            : 0;
+        if (bestSquatWeight.compareTo(goal) >= 0) {
+            return "Best logged squat: " + bestSquatWeight.stripTrailingZeros().toPlainString() + " lb, at "
+                + "or above the ~" + goal.stripTrailingZeros().toPlainString() + " lb 2x-bodyweight goal ("
+                + pct + "%) -- the squat-strength goal has been met. Shift primary bilateral-squat emphasis "
+                + "away from back squat toward front squat, box squat, and half/partial squat variations.";
+        }
+        return "Best logged squat: " + bestSquatWeight.stripTrailingZeros().toPlainString() + " lb, " + pct
+            + "% of the ~" + goal.stripTrailingZeros().toPlainString() + " lb 2x-bodyweight goal -- keep back "
+            + "squat as the primary bilateral squat-pattern lift until that goal is reached.";
     }
 
     private static String nullToNone(Object value) {

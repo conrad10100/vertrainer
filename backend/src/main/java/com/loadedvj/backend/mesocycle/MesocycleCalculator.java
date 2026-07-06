@@ -14,7 +14,9 @@ public final class MesocycleCalculator {
         new Phase("Intensification", "Strength",
             "Maximal strength — heavier loads, lower reps, building the force ceiling."),
         new Phase("Realization", "Power",
-            "Power & reactive strength — lighter/faster loads, plyometrics, converting strength to jump height.")
+            "Power & reactive strength — lighter/faster loads, plyometrics, converting strength to jump height. " +
+            "Favor trap bar jumps, depth jumps, and other reactive/explosive variations here to convert " +
+            "strength into speed.")
     );
 
     private MesocycleCalculator() { }

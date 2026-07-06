@@ -23,6 +23,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -100,9 +101,10 @@ public class ProgramService {
         String dayNotesSummary = buildDayNotesSummary(lastWeek);
         String checkinSummary = buildCheckinSummary(userId);
         String adherenceSummary = buildAdherenceSummary(program);
+        BigDecimal bestSquatWeight = findBestSquatWeight(program);
 
         NextWeekResult result = generationService.generateNextWeek(program, nextWeekNumber, logSummary,
-            dayNotesSummary, checkinSummary, adherenceSummary);
+            dayNotesSummary, checkinSummary, adherenceSummary, bestSquatWeight);
         validateGeneratedWeek(null, result.days(), program.getDaysPerWeek());
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
         Week week = buildWeek(nextWeekNumber, info, result.days());
@@ -276,6 +278,29 @@ public class ProgramService {
             sb.append("\n");
         }
         return sb.toString();
+    }
+
+    /**
+     * Best-ever logged weight on a bilateral squat-pattern lift (back squat, front squat, box squat,
+     * etc. -- excludes unilateral variations like split squats/lunges), used to decide whether the
+     * 2x-bodyweight squat-strength goal has been met yet.
+     */
+    private BigDecimal findBestSquatWeight(Program program) {
+        BigDecimal best = null;
+        for (Week week : program.getWeeks()) {
+            for (Day day : week.getDays()) {
+                for (Exercise ex : day.getExercises()) {
+                    String name = ex.getName().toLowerCase();
+                    boolean isBilateralSquat = name.contains("squat")
+                        && !name.contains("single") && !name.contains("split") && !name.contains("bulgarian");
+                    if (isBilateralSquat && ex.getLoggedWeight() != null
+                        && (best == null || ex.getLoggedWeight().compareTo(best) > 0)) {
+                        best = ex.getLoggedWeight();
+                    }
+                }
+            }
+        }
+        return best;
     }
 
     private String buildAdherenceSummary(Program program) {
