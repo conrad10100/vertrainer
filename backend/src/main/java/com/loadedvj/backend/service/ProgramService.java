@@ -25,8 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -38,6 +38,7 @@ public class ProgramService {
 
     private static final int MAX_CHECKINS_IN_SUMMARY = 6;
     private static final int GENERATION_MAX_ATTEMPTS = 2;
+    private static final Duration MIN_TIME_BETWEEN_WEEKS = Duration.ofHours(20);
 
     private final ProgramRepository programRepository;
     private final WeekRepository weekRepository;
@@ -101,10 +102,11 @@ public class ProgramService {
         Week lastWeek = weekRepository.findTopByProgramIdOrderByWeekNumberDesc(programId)
             .orElseThrow(() -> new EntityNotFoundException("Program has no weeks yet"));
 
-        if (isSameUtcDay(lastWeek.getCreatedAt(), Instant.now())) {
+        Duration sinceLastWeek = Duration.between(lastWeek.getCreatedAt(), Instant.now());
+        if (sinceLastWeek.compareTo(MIN_TIME_BETWEEN_WEEKS) < 0) {
             throw new WeekAlreadyGeneratedException(
-                "You've already generated a new week today. A double-click or a slow request retried can "
-                    + "otherwise create two weeks at once -- try again tomorrow.");
+                "You've already generated a new week recently. A double-click or a slow request retried can "
+                    + "otherwise create two weeks at once -- try again in a few hours.");
         }
 
         usageLimitService.enforceDailyLimit(userId);
@@ -333,16 +335,6 @@ public class ProgramService {
             }
         }
         return best;
-    }
-
-    /**
-     * True if two instants fall on the same UTC calendar day. Used to block generating a second
-     * new week on the same day (e.g. a double-click, or a slow request the athlete retried by
-     * clicking again) -- a race the button's disabled-while-loading state alone can't fully close,
-     * since it doesn't survive a page reload or two clicks that land before the DOM re-renders.
-     */
-    private boolean isSameUtcDay(Instant a, Instant b) {
-        return LocalDate.ofInstant(a, ZoneOffset.UTC).equals(LocalDate.ofInstant(b, ZoneOffset.UTC));
     }
 
     private String buildAdherenceSummary(Program program) {
