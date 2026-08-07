@@ -72,7 +72,7 @@ create index idx_checkins_user_recorded on public.vertical_checkins(user_id, rec
 -- calls. Absence of a row means the default limit applies.
 create table public.user_limits (
   user_id           uuid primary key references auth.users(id) on delete cascade,
-  daily_call_limit  int not null default 5
+  daily_call_limit  int not null default 3
 );
 
 -- One row per user per calendar day; call_count is incremented atomically
