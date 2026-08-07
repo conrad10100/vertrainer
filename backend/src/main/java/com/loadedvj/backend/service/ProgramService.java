@@ -20,6 +20,8 @@ import com.loadedvj.backend.repository.ProgramRepository;
 import com.loadedvj.backend.repository.VerticalCheckinRepository;
 import com.loadedvj.backend.repository.WeekRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,8 @@ import java.util.UUID;
 @Service
 @Transactional
 public class ProgramService {
+
+    private static final Logger log = LoggerFactory.getLogger(ProgramService.class);
 
     private static final int MAX_CHECKINS_IN_SUMMARY = 6;
     private static final int MAX_WEEKS_IN_ADHERENCE_SUMMARY = 6;
@@ -80,11 +84,7 @@ public class ProgramService {
         program.setNotes(req.notes());
         program.setActive(true);
 
-        ProgramCreationResult result = withGenerationRetry(() -> {
-            ProgramCreationResult r = generationService.createFirstWeek(program);
-            validateGeneratedWeek(r.programName(), r.days(), req.daysPerWeek());
-            return r;
-        });
+        ProgramCreationResult result = withGenerationRetry(() -> generationService.createFirstWeek(userId, program));
         program.setProgramName(result.programName());
 
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(1);
@@ -120,14 +120,21 @@ public class ProgramService {
         String adherenceSummary = buildAdherenceSummary(programId);
         BigDecimal bestSquatWeight = findBestSquatWeight(program);
 
-        NextWeekResult result = withGenerationRetry(() -> {
-            NextWeekResult r = generationService.generateNextWeek(program, nextWeekNumber, logSummary,
-                dayNotesSummary, checkinSummary, adherenceSummary, bestSquatWeight);
-            validateGeneratedWeek(null, r.days(), program.getDaysPerWeek());
-            return r;
-        });
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
-        Week week = buildWeek(nextWeekNumber, info, result.days());
+        Week week;
+        try {
+            NextWeekResult result = withGenerationRetry(() -> generationService.generateNextWeek(userId, program,
+                nextWeekNumber, logSummary, dayNotesSummary, checkinSummary, adherenceSummary, bestSquatWeight));
+            week = buildWeek(nextWeekNumber, info, result.days());
+        } catch (GenerationFailedException e) {
+            // Every attempt already failed our eval rules and was retried once (see
+            // withGenerationRetry) -- rather than leaving the athlete with no plan at all, fall
+            // back to reusing last week's prescribed plan unchanged. Each failed attempt is in the
+            // audit log (AiCallAuditLog), so this fallback is fully traceable after the fact.
+            log.warn("Falling back to last week's plan for program {} week {} after generation failed: {}",
+                programId, nextWeekNumber, e.getMessage());
+            week = cloneAsFallback(lastWeek, nextWeekNumber, info);
+        }
         program.addWeek(week);
         programRepository.save(program);
 
@@ -152,7 +159,7 @@ public class ProgramService {
         ExerciseGen current = new ExerciseGen(exercise.getName(), exercise.getSets(), exercise.getReps(),
             exercise.getTargetWeight(), exercise.getNotes());
 
-        ExerciseGen replacement = generationService.swapExercise(week.getProgram(), day.getFocus(),
+        ExerciseGen replacement = generationService.swapExercise(userId, week.getProgram(), day.getFocus(),
             day.getDayLabel(), info.cycleNumber(), info.phase().name(), info.phase().description(),
             current, req.requestText());
 
@@ -259,24 +266,38 @@ public class ProgramService {
     }
 
     /**
-     * Guards against a truncated/degenerate structured-output response (e.g. thinking tokens
-     * eating into max_tokens) getting persisted as a broken program -- fail loudly instead.
-     * programName is only checked when non-null (first-week creation; next-week generation
-     * doesn't return one).
+     * Builds a new week by carrying over last week's prescribed days/exercises unchanged (not the
+     * athlete's logged actuals) -- used only when generation has exhausted its retries and failed
+     * our eval rules both times. Keeps the athlete moving on a known-good plan instead of hitting a
+     * dead end; the failed attempts that led here are recorded in the audit log.
      */
-    private void validateGeneratedWeek(String programName, List<DayGen> days, int expectedDayCount) {
-        if (programName != null && programName.isBlank()) {
-            throw new GenerationFailedException("Claude returned an empty program name");
-        }
-        if (days.size() != expectedDayCount) {
-            throw new GenerationFailedException(
-                "Claude returned " + days.size() + " day(s), expected " + expectedDayCount);
-        }
-        for (DayGen day : days) {
-            if (day.exercises().isEmpty()) {
-                throw new GenerationFailedException("Claude returned a day with no exercises: " + day.dayLabel());
+    private Week cloneAsFallback(Week lastWeek, int weekNumber, PhaseInfo info) {
+        Week week = new Week();
+        week.setWeekNumber(weekNumber);
+        week.setCyclePosition(info.cyclePosition());
+        week.setCycleNumber(info.cycleNumber());
+        week.setPhase(info.phase().name());
+        week.setDeload(info.isDeload());
+
+        for (Day sourceDay : lastWeek.getDays()) {
+            Day day = new Day();
+            day.setDayIndex(sourceDay.getDayIndex());
+            day.setDayLabel(sourceDay.getDayLabel());
+            day.setFocus(sourceDay.getFocus());
+            week.addDay(day);
+
+            for (Exercise sourceEx : sourceDay.getExercises()) {
+                Exercise exercise = new Exercise();
+                exercise.setExerciseIndex(sourceEx.getExerciseIndex());
+                exercise.setName(sourceEx.getName());
+                exercise.setSets(sourceEx.getSets());
+                exercise.setReps(sourceEx.getReps());
+                exercise.setTargetWeight(sourceEx.getTargetWeight());
+                exercise.setNotes(sourceEx.getNotes());
+                day.addExercise(exercise);
             }
         }
+        return week;
     }
 
     /**
