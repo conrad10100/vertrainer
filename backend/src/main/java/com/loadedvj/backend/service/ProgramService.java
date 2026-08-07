@@ -20,6 +20,7 @@ import com.loadedvj.backend.repository.ProgramRepository;
 import com.loadedvj.backend.repository.VerticalCheckinRepository;
 import com.loadedvj.backend.repository.WeekRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ import java.util.UUID;
 public class ProgramService {
 
     private static final int MAX_CHECKINS_IN_SUMMARY = 6;
+    private static final int MAX_WEEKS_IN_ADHERENCE_SUMMARY = 6;
     private static final int GENERATION_MAX_ATTEMPTS = 2;
     private static final Duration MIN_TIME_BETWEEN_WEEKS = Duration.ofHours(20);
 
@@ -115,7 +117,7 @@ public class ProgramService {
         String logSummary = buildLogSummary(lastWeek);
         String dayNotesSummary = buildDayNotesSummary(lastWeek);
         String checkinSummary = buildCheckinSummary(userId);
-        String adherenceSummary = buildAdherenceSummary(program);
+        String adherenceSummary = buildAdherenceSummary(programId);
         BigDecimal bestSquatWeight = findBestSquatWeight(program);
 
         NextWeekResult result = withGenerationRetry(() -> {
@@ -337,9 +339,20 @@ public class ProgramService {
         return best;
     }
 
-    private String buildAdherenceSummary(Program program) {
+    /**
+     * Bounded to the most recent weeks rather than the program's entire history -- keeps the
+     * generation prompt (and the amount of week/day/exercise data pulled into memory to build it)
+     * from growing without limit as a program runs for many weeks. Older weeks still count toward
+     * squat-strength tracking (findBestSquatWeight) and stay visible in the app; they just drop out
+     * of this per-week adherence recap once they're no longer recent.
+     */
+    private String buildAdherenceSummary(UUID programId) {
+        List<Week> recentWeeksDesc = weekRepository.findByProgramIdOrderByWeekNumberDesc(
+            programId, PageRequest.of(0, MAX_WEEKS_IN_ADHERENCE_SUMMARY));
+
         StringBuilder sb = new StringBuilder();
-        for (Week week : program.getWeeks()) {
+        for (int i = recentWeeksDesc.size() - 1; i >= 0; i--) {
+            Week week = recentWeeksDesc.get(i);
             int total = 0;
             int logged = 0;
             for (Day day : week.getDays()) {
