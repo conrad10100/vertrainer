@@ -2,10 +2,15 @@ package com.loadedvj.backend.anthropic;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.models.messages.MessageCreateParams;
+import com.anthropic.models.messages.StructuredMessage;
 import com.anthropic.models.messages.StructuredMessageCreateParams;
+import com.anthropic.models.messages.StructuredTextBlock;
+import com.loadedvj.backend.anthropic.GenerationModels.DayGen;
 import com.loadedvj.backend.anthropic.GenerationModels.ExerciseGen;
 import com.loadedvj.backend.anthropic.GenerationModels.NextWeekResult;
 import com.loadedvj.backend.anthropic.GenerationModels.ProgramCreationResult;
+import com.loadedvj.backend.audit.AiCallAuditLog;
+import com.loadedvj.backend.audit.AiCallAuditLogService;
 import com.loadedvj.backend.domain.Program;
 import com.loadedvj.backend.mesocycle.MesocycleCalculator;
 import com.loadedvj.backend.mesocycle.MesocycleCalculator.Phase;
@@ -14,9 +19,20 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
 
 @Service
 public class ProgramGenerationService {
+
+    /**
+     * Bumped whenever COACH_PERSONA or a prompt template below changes materially -- lets the
+     * audit log (AiCallAuditLog.promptVersion) attribute a given output to the exact prompt that
+     * produced it, independent of when the call happened.
+     */
+    private static final String PROMPT_VERSION = "2026-08-07.1";
 
     private static final String COACH_PERSONA = """
         You are a strength & conditioning coach specializing in vertical jump development.
@@ -42,13 +58,16 @@ public class ProgramGenerationService {
 
     private final AnthropicClient client;
     private final String model;
+    private final AiCallAuditLogService auditLogService;
 
-    public ProgramGenerationService(AnthropicClient client, @Value("${anthropic.model}") String model) {
+    public ProgramGenerationService(AnthropicClient client, @Value("${anthropic.model}") String model,
+                                     AiCallAuditLogService auditLogService) {
         this.client = client;
         this.model = model;
+        this.auditLogService = auditLogService;
     }
 
-    public ProgramCreationResult createFirstWeek(Program program) {
+    public ProgramCreationResult createFirstWeek(UUID userId, Program program) {
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(1);
         Phase phase = info.phase();
 
@@ -96,14 +115,12 @@ public class ProgramGenerationService {
             .addUserMessage(user)
             .build();
 
-        return client.messages().create(params).content().stream()
-            .flatMap(block -> block.text().stream())
-            .map(text -> text.text())
-            .findFirst()
-            .orElseThrow(() -> new GenerationFailedException("Claude returned no structured content for week 1"));
+        int expectedDayCount = program.getDaysPerWeek();
+        return callAndAudit(userId, "CREATE_FIRST_WEEK", system, user, params,
+            r -> validateFirstWeek(r, expectedDayCount));
     }
 
-    public NextWeekResult generateNextWeek(Program program, int nextWeekNumber, String logSummary,
+    public NextWeekResult generateNextWeek(UUID userId, Program program, int nextWeekNumber, String logSummary,
                                             String dayNotesSummary, String checkinSummary,
                                             String adherenceSummary, BigDecimal bestSquatWeight) {
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
@@ -192,17 +209,14 @@ public class ProgramGenerationService {
             .addUserMessage(user)
             .build();
 
-        return client.messages().create(params).content().stream()
-            .flatMap(block -> block.text().stream())
-            .map(text -> text.text())
-            .findFirst()
-            .orElseThrow(() -> new GenerationFailedException(
-                "Claude returned no structured content for week " + nextWeekNumber));
+        int expectedDayCount = program.getDaysPerWeek();
+        return callAndAudit(userId, "GENERATE_NEXT_WEEK", system, user, params,
+            r -> validateDays(r.days(), expectedDayCount));
     }
 
-    public ExerciseGen swapExercise(Program program, String dayFocus, String dayLabel, int cycleNumber,
-                                     String phaseName, String phaseDescription, ExerciseGen currentExercise,
-                                     String requestText) {
+    public ExerciseGen swapExercise(UUID userId, Program program, String dayFocus, String dayLabel,
+                                     int cycleNumber, String phaseName, String phaseDescription,
+                                     ExerciseGen currentExercise, String requestText) {
         String system = COACH_PERSONA + """
              The athlete wants to customize one exercise in their program. Make the replacement fit the \
             day's training focus and the current periodization phase. Honor the athlete's request as \
@@ -239,11 +253,81 @@ public class ProgramGenerationService {
             .addUserMessage(user)
             .build();
 
-        return client.messages().create(params).content().stream()
-            .flatMap(block -> block.text().stream())
-            .map(text -> text.text())
-            .findFirst()
-            .orElseThrow(() -> new GenerationFailedException("Claude returned no replacement exercise"));
+        return callAndAudit(userId, "SWAP_EXERCISE", system, user, params, r -> null);
+    }
+
+    /**
+     * Makes the actual Claude call, times it, extracts the raw + parsed output and token usage,
+     * runs the result through the given eval rule, and records one audit-log row for the attempt
+     * -- whether it passed or failed. The audit write is fire-and-forget (AiCallAuditLogService is
+     * @Async); this method never waits on it and its outcome never affects the caller.
+     *
+     * @param validator returns null if the result passes the eval rule, or a human-readable
+     *                   failure reason if it doesn't.
+     */
+    private <T> T callAndAudit(UUID userId, String operation, String systemPrompt, String userPrompt,
+                                StructuredMessageCreateParams<T> params, Function<T, String> validator) {
+        long startNanos = System.nanoTime();
+        StructuredMessage<T> response = client.messages().create(params);
+        long latencyMs = (System.nanoTime() - startNanos) / 1_000_000;
+
+        AiCallAuditLog auditEntry = new AiCallAuditLog();
+        auditEntry.setUserId(userId);
+        auditEntry.setOperation(operation);
+        auditEntry.setPromptVersion(PROMPT_VERSION);
+        auditEntry.setModel(model);
+        auditEntry.setSystemPrompt(systemPrompt);
+        auditEntry.setUserPrompt(userPrompt);
+        auditEntry.setLatencyMs(latencyMs);
+        auditEntry.setInputTokens(response.usage().inputTokens());
+        auditEntry.setOutputTokens(response.usage().outputTokens());
+
+        Optional<StructuredTextBlock<T>> block = response.content().stream()
+            .flatMap(b -> b.text().stream())
+            .findFirst();
+
+        if (block.isEmpty()) {
+            auditEntry.setPassed(false);
+            auditEntry.setFailureReason("Claude returned no structured content");
+            auditLogService.record(auditEntry);
+            throw new GenerationFailedException("Claude returned no structured content for " + operation);
+        }
+
+        auditEntry.setRawOutput(block.get().rawTextBlock().text());
+
+        T result = block.get().text();
+        String failureReason = validator.apply(result);
+        auditEntry.setPassed(failureReason == null);
+        auditEntry.setFailureReason(failureReason);
+        auditLogService.record(auditEntry);
+
+        if (failureReason != null) {
+            throw new GenerationFailedException(failureReason);
+        }
+        return result;
+    }
+
+    /**
+     * The eval rules a generated week must pass before it's allowed to reach the database:
+     * exactly the requested number of days, and no day left with zero exercises.
+     */
+    private static String validateDays(List<DayGen> days, int expectedDayCount) {
+        if (days.size() != expectedDayCount) {
+            return "Claude returned " + days.size() + " day(s), expected " + expectedDayCount;
+        }
+        for (DayGen day : days) {
+            if (day.exercises().isEmpty()) {
+                return "Claude returned a day with no exercises: " + day.dayLabel();
+            }
+        }
+        return null;
+    }
+
+    private static String validateFirstWeek(ProgramCreationResult result, int expectedDayCount) {
+        if (result.programName() == null || result.programName().isBlank()) {
+            return "Claude returned an empty program name";
+        }
+        return validateDays(result.days(), expectedDayCount);
     }
 
     private static String squatTargetDisplay(Program program) {

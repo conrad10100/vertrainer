@@ -85,13 +85,42 @@ create table public.api_usage_daily (
 );
 create index idx_api_usage_daily_user_date on public.api_usage_daily(user_id, usage_date);
 
+-- Fire-and-forget audit trail: one row per Claude API call the backend makes -- what was sent,
+-- what came back, whether it passed our structural eval rules, and how expensive/slow it was.
+-- Written asynchronously by AiCallAuditLogService; a write failure here must never block or fail
+-- the user-facing request. user_id uses ON DELETE SET NULL (not CASCADE) so the audit trail
+-- survives account deletion, which is the point of an audit trail.
+create table public.ai_call_audit_log (
+  id              uuid primary key default gen_random_uuid(),
+  created_at      timestamptz not null default now(),
+  user_id         uuid references auth.users(id) on delete set null,
+  operation       text not null,
+  prompt_version  text not null,
+  model           text not null,
+  system_prompt   text not null,
+  user_prompt     text not null,
+  raw_output      text,
+  passed          boolean not null,
+  failure_reason  text,
+  input_tokens    bigint,
+  output_tokens   bigint,
+  latency_ms      bigint not null
+);
+create index idx_ai_call_audit_log_user_created on public.ai_call_audit_log(user_id, created_at);
+create index idx_ai_call_audit_log_operation on public.ai_call_audit_log(operation);
+
 alter table public.user_limits enable row level security;
 alter table public.api_usage_daily enable row level security;
+alter table public.ai_call_audit_log enable row level security;
 
 create policy "own limits" on public.user_limits
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own usage" on public.api_usage_daily
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- Read-only: the backend writes audit rows via its trusted direct-Postgres role, never on
+-- behalf of a logged-in user, so there's no insert/update/delete policy for end users here.
+create policy "own audit log" on public.ai_call_audit_log
+  for select using (auth.uid() = user_id);
 
 -- RLS enabled as defense-in-depth; the Java backend connects via a trusted
 -- direct Postgres role (bypasses RLS) and is the actual enforcement layer,
