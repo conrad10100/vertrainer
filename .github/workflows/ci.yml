@@ -36,11 +36,3 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npx ng test --watch=false
-
-  deploy-frontend:
-    needs: [backend-test, frontend-test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Vercel deploy hook
-        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
