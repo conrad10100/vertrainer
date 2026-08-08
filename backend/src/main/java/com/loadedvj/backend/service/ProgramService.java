@@ -342,7 +342,7 @@ public class ProgramService {
      * etc. -- excludes unilateral variations like split squats/lunges), used to decide whether the
      * 2x-bodyweight squat-strength goal has been met yet.
      */
-    private BigDecimal findBestSquatWeight(Program program) {
+    BigDecimal findBestSquatWeight(Program program) {
         BigDecimal best = null;
         for (Week week : program.getWeeks()) {
             for (Day day : week.getDays()) {
