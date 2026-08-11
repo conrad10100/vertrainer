@@ -32,7 +32,7 @@ public class ProgramGenerationService {
      * audit log (AiCallAuditLog.promptVersion) attribute a given output to the exact prompt that
      * produced it, independent of when the call happened.
      */
-    private static final String PROMPT_VERSION = "2026-08-07.1";
+    private static final String PROMPT_VERSION = "2026-08-10.1";
 
     private static final String COACH_PERSONA = """
         You are a strength & conditioning coach specializing in vertical jump development.
@@ -134,10 +134,16 @@ public class ProgramGenerationService {
 
             This next week is week %d: Cycle %d, phase "%s" (%s)%s%s
 
-            Apply progressive overload using the log: if they hit or exceeded prescribed reps at the \
-            prescribed weight, increase weight appropriately for the current phase's rep range and their \
-            experience level; if they missed reps notably, hold the weight or reduce it slightly; if an \
-            exercise wasn't logged, keep it the same or apply a small standard progression. You may swap \
+            Apply progressive overload using the log, with these load-change bands as your default -- \
+            deviate only when the athlete's experience level or the exercise type clearly calls for it \
+            (smaller increments for unilateral/isolation work, larger for compound bilateral lifts):
+            - Hit or exceeded prescribed reps at prescribed weight: increase load 5-10% for beginner/ \
+            novice athletes, 2.5-5% for intermediate/advanced athletes.
+            - Missed prescribed reps by 1-2: hold the weight, keep the same rep target.
+            - Missed prescribed reps by 3 or more: reduce load 5-10% and hold there next week.
+            - Exercise wasn't logged: keep weight the same and apply a standard beginner 5% / advanced \
+            2.5% increase only if the rest of the week shows good adherence; otherwise hold.
+            You may swap \
             in phase-appropriate exercises (e.g. moving from squats/RDLs toward jump squats, trap bar \
             jumps, or depth jumps as phases shift toward power/reactive work), but keep continuity where \
             it makes sense for tracking. If the athlete added day-specific context (travel, no equipment \
