@@ -122,12 +122,15 @@ create table public.prompt_templates (
 );
 
 create or replace function public.touch_prompt_templates_updated_at()
-returns trigger as $trigger$
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $trigger$
 begin
   new.updated_at = now();
   return new;
 end;
-$trigger$ language plpgsql;
+$trigger$;
 
 create trigger prompt_templates_touch_updated_at
   before update on public.prompt_templates
