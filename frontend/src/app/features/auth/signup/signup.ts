@@ -25,9 +25,14 @@ export class Signup {
     try {
       await this.supabase.signUp(this.email, this.password);
       this.submitted.set(true);
-      // If email confirmation is disabled in Supabase, signUp already signs
-      // the user in; the auth guard will pick up the session automatically.
-      this.router.navigate(['/program']);
+      // signUp() only produces an active session immediately when email
+      // confirmation is disabled in Supabase. With it enabled (the normal
+      // case here), there's no session yet -- navigating to /program would
+      // just bounce off the auth guard back to /login with no explanation,
+      // so stay put and show the "check your email" message instead.
+      if (this.supabase.session()) {
+        this.router.navigate(['/program']);
+      }
     } catch (err) {
       this.errorMsg.set(err instanceof Error ? err.message : 'Sign up failed.');
     } finally {
