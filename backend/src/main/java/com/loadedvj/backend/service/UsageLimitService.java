@@ -12,7 +12,7 @@ import java.util.UUID;
 @Service
 public class UsageLimitService {
 
-    public static final int DEFAULT_DAILY_LIMIT = 5;
+    public static final int DEFAULT_DAILY_LIMIT = 3;
 
     private final UserLimitRepository userLimitRepository;
     private final ApiUsageDailyRepository apiUsageDailyRepository;

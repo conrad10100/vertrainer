@@ -16,7 +16,10 @@ import java.time.Instant;
 @Table(name = "prompt_templates")
 public class PromptTemplate {
 
+    // Column is "template_key", not "key" -- KEY is a reserved word in some SQL dialects (H2,
+    // used by the test suite, rejects it outright).
     @Id
+    @Column(name = "template_key")
     private String key;
 
     @Column(nullable = false, columnDefinition = "text")

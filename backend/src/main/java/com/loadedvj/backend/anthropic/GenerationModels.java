@@ -41,6 +41,11 @@ public final class GenerationModels {
     ) { }
 
     public record NextWeekResult(
+        @JsonPropertyDescription("""
+            Brief reasoning (2-4 sentences) on how the logged results, adherence history, and check-in \
+            trend inform this week's changes -- decide direction (progress, hold, deload, or reshape) \
+            before writing the days below.""")
+        String reasoning,
         @JsonPropertyDescription("This week's training days, in order") List<DayGen> days
     ) { }
 }
