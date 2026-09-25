@@ -76,6 +76,7 @@ public class Program {
     public void setActive(boolean active) { this.active = active; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getGenerationStartedAt() { return generationStartedAt; }
+    public void setGenerationStartedAt(Instant generationStartedAt) { this.generationStartedAt = generationStartedAt; }
     public List<Week> getWeeks() { return weeks; }
 
     public void addWeek(Week week) {
