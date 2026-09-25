@@ -145,6 +145,10 @@
           Log done — build week {{ week.weekNumber + 1 }}
         }
       </button>
+      @if (generatingNext()) {
+        <p class="generation-status">{{ generationStatusMessage() }} ({{ elapsedSeconds() }}s) — feel free to
+          leave this page, it'll keep going and be here when you're back.</p>
+      }
     </div>
   }
 

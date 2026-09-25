@@ -2,6 +2,7 @@ package com.loadedvj.backend.web;
 
 import com.loadedvj.backend.anthropic.GenerationFailedException;
 import com.loadedvj.backend.service.DailyLimitExceededException;
+import com.loadedvj.backend.service.GenerationInProgressException;
 import com.loadedvj.backend.service.WeekAlreadyGeneratedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(WeekAlreadyGeneratedException.class)
     public ResponseEntity<Map<String, String>> handleWeekAlreadyGenerated(WeekAlreadyGeneratedException ex) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(GenerationInProgressException.class)
+    public ResponseEntity<Map<String, String>> handleGenerationInProgress(GenerationInProgressException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(GenerationFailedException.class)

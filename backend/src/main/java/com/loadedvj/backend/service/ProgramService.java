@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -53,11 +54,13 @@ public class ProgramService {
     private final VerticalCheckinRepository checkinRepository;
     private final ProgramGenerationService generationService;
     private final UsageLimitService usageLimitService;
+    private final ProgramGenerationLockService generationLockService;
 
     public ProgramService(ProgramRepository programRepository, WeekRepository weekRepository,
                            DayRepository dayRepository, ExerciseRepository exerciseRepository,
                            VerticalCheckinRepository checkinRepository,
-                           ProgramGenerationService generationService, UsageLimitService usageLimitService) {
+                           ProgramGenerationService generationService, UsageLimitService usageLimitService,
+                           ProgramGenerationLockService generationLockService) {
         this.programRepository = programRepository;
         this.weekRepository = weekRepository;
         this.dayRepository = dayRepository;
@@ -65,6 +68,7 @@ public class ProgramService {
         this.checkinRepository = checkinRepository;
         this.generationService = generationService;
         this.usageLimitService = usageLimitService;
+        this.generationLockService = generationLockService;
     }
 
     public ProgramResponse createProgram(UUID userId, CreateProgramRequest req) {
@@ -107,38 +111,60 @@ public class ProgramService {
         Duration sinceLastWeek = Duration.between(lastWeek.getCreatedAt(), Instant.now());
         if (sinceLastWeek.compareTo(MIN_TIME_BETWEEN_WEEKS) < 0) {
             throw new WeekAlreadyGeneratedException(
-                "You've already generated a new week recently. A double-click or a slow request retried can "
-                    + "otherwise create two weeks at once -- try again in a few hours.");
+                "You've already generated a new week recently -- try again in a few hours.");
         }
 
-        usageLimitService.enforceDailyLimit(userId);
+        // Claude generation takes 30-90+ seconds; a dropped connection or an impatient retry can
+        // otherwise fire a second request while the first is still running server-side, and both
+        // would try to insert the same week number. Claim this lock (an atomic, immediately-
+        // committed UPDATE -- see ProgramGenerationLockService) before doing any of that work.
+        if (!generationLockService.tryAcquire(programId)) {
+            throw new GenerationInProgressException(
+                "This program's next week is already being generated -- check back in a bit.");
+        }
 
         int nextWeekNumber = lastWeek.getWeekNumber() + 1;
-        String logSummary = buildLogSummary(lastWeek);
-        String dayNotesSummary = buildDayNotesSummary(lastWeek);
-        String checkinSummary = buildCheckinSummary(userId);
-        String adherenceSummary = buildAdherenceSummary(programId);
-        BigDecimal bestSquatWeight = findBestSquatWeight(program);
-
-        PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
-        Week week;
         try {
-            NextWeekResult result = withGenerationRetry(() -> generationService.generateNextWeek(userId, program,
-                nextWeekNumber, logSummary, dayNotesSummary, checkinSummary, adherenceSummary, bestSquatWeight));
-            week = buildWeek(nextWeekNumber, info, result.days());
-        } catch (GenerationFailedException e) {
-            // Every attempt already failed our eval rules and was retried once (see
-            // withGenerationRetry) -- rather than leaving the athlete with no plan at all, fall
-            // back to reusing last week's prescribed plan unchanged. Each failed attempt is in the
-            // audit log (AiCallAuditLog), so this fallback is fully traceable after the fact.
-            log.warn("Falling back to last week's plan for program {} week {} after generation failed: {}",
-                programId, nextWeekNumber, e.getMessage());
-            week = cloneAsFallback(lastWeek, nextWeekNumber, info);
-        }
-        program.addWeek(week);
-        programRepository.save(program);
+            // A retry after a dropped connection, or a request that arrived just as the lock above
+            // went stale, may find that a previous attempt already finished and committed this same
+            // week -- if so, hand it back as a success instead of burning another Claude call (and
+            // the daily quota) attempting to insert it again.
+            Optional<Week> alreadyGenerated = weekRepository.findByProgramIdAndWeekNumber(programId, nextWeekNumber);
+            if (alreadyGenerated.isPresent()) {
+                return toWeekResponse(alreadyGenerated.get());
+            }
 
-        return toWeekResponse(week);
+            usageLimitService.enforceDailyLimit(userId);
+
+            String logSummary = buildLogSummary(lastWeek);
+            String dayNotesSummary = buildDayNotesSummary(lastWeek);
+            String checkinSummary = buildCheckinSummary(userId);
+            String adherenceSummary = buildAdherenceSummary(programId);
+            BigDecimal bestSquatWeight = findBestSquatWeight(program);
+
+            PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
+            Week week;
+            try {
+                NextWeekResult result = withGenerationRetry(() -> generationService.generateNextWeek(userId,
+                    program, nextWeekNumber, logSummary, dayNotesSummary, checkinSummary, adherenceSummary,
+                    bestSquatWeight));
+                week = buildWeek(nextWeekNumber, info, result.days());
+            } catch (GenerationFailedException e) {
+                // Every attempt already failed our eval rules and was retried once (see
+                // withGenerationRetry) -- rather than leaving the athlete with no plan at all, fall
+                // back to reusing last week's prescribed plan unchanged. Each failed attempt is in the
+                // audit log (AiCallAuditLog), so this fallback is fully traceable after the fact.
+                log.warn("Falling back to last week's plan for program {} week {} after generation failed: {}",
+                    programId, nextWeekNumber, e.getMessage());
+                week = cloneAsFallback(lastWeek, nextWeekNumber, info);
+            }
+            program.addWeek(week);
+            programRepository.save(program);
+
+            return toWeekResponse(week);
+        } finally {
+            generationLockService.release(programId);
+        }
     }
 
     public ExerciseResponse logExercise(UUID userId, UUID exerciseId, LogExerciseRequest req) {
@@ -393,10 +419,18 @@ public class ProgramService {
     }
 
     private ProgramResponse toResponse(Program program) {
+        boolean inProgress = isGenerationInProgress(program.getGenerationStartedAt());
         return new ProgramResponse(program.getId(), program.getProgramName(), program.getCurrentVertical(),
             program.getTargetVertical(), program.getHeight(), program.getBodyweight(), program.getDaysPerWeek(),
             program.getExperienceLevel(), program.getNotes(),
-            program.getWeeks().stream().map(this::toWeekResponse).toList());
+            program.getWeeks().stream().map(this::toWeekResponse).toList(),
+            inProgress, inProgress ? program.getGenerationStartedAt() : null);
+    }
+
+    private static boolean isGenerationInProgress(Instant generationStartedAt) {
+        return generationStartedAt != null
+            && Duration.between(generationStartedAt, Instant.now())
+                .compareTo(ProgramGenerationLockService.STALE_AFTER) < 0;
     }
 
     private WeekResponse toWeekResponse(Week week) {
