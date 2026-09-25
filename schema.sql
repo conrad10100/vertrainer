@@ -12,7 +12,8 @@ create table public.programs (
   experience_level  text not null,
   notes             text,
   active            boolean not null default true,
-  created_at        timestamptz not null default now()
+  created_at        timestamptz not null default now(),
+  generation_started_at timestamptz
 );
 create index idx_programs_user_id on public.programs(user_id);
 

@@ -22,6 +22,17 @@ export class WeekView implements OnInit {
   errorMsg = signal('');
   restarting = signal(false);
 
+  private generationToken = 0;
+  private elapsedTimerId: ReturnType<typeof setInterval> | null = null;
+  elapsedSeconds = signal(0);
+  generationStatusMessage = computed(() => {
+    const s = this.elapsedSeconds();
+    if (s < 12) return "Reviewing last week's log...";
+    if (s < 35) return "Building next week's plan...";
+    if (s < 70) return 'Still working -- this can take up to a couple minutes...';
+    return 'Almost there -- thanks for your patience...';
+  });
+
   openSwapKey = signal<string | null>(null);
   swapInputs: Record<string, string> = {};
   swappingKey = signal<string | null>(null);
@@ -46,6 +57,24 @@ export class WeekView implements OnInit {
       const program = await this.programApi.getActiveProgram();
       this.program.set(program);
       this.activeWeekIndex.set(program.weeks.length - 1);
+      if (program.generationInProgress) {
+        // A previous "build next week" click is still running server-side (or this tab was
+        // reloaded while it was) -- resume watching instead of showing a plain, clickable button
+        // that would just 409 if pressed again.
+        const myToken = this.generationToken;
+        this.watchGeneration(myToken, program.weeks.length + 1, program.generationStartedAt ?? undefined, 0).then(
+          (outcome) => {
+            if (myToken !== this.generationToken) return;
+            if (outcome === 'failed') {
+              this.errorMsg.set("Couldn't build next week — try again.");
+            } else if (outcome === 'timeout') {
+              this.errorMsg.set('Still working -- refresh in a bit to check.');
+            }
+            this.stopElapsedTimer();
+            this.generatingNext.set(false);
+          }
+        );
+      }
     } catch (err) {
       if (!(err instanceof HttpErrorResponse && err.status === 404)) {
         console.error(err);
@@ -230,18 +259,117 @@ export class WeekView implements OnInit {
     const program = this.program();
     const week = this.activeWeek();
     if (!program || !week) return;
+    const targetWeekNumber = week.weekNumber + 1;
+    const myToken = ++this.generationToken;
+
     this.generatingNext.set(true);
     this.errorMsg.set('');
-    try {
-      const nextWeek = await this.programApi.generateNextWeek(program.id);
-      program.weeks.push(nextWeek);
-      this.activeWeekIndex.set(program.weeks.length - 1);
-    } catch (err) {
-      console.error(err);
-      const backendMessage = err instanceof HttpErrorResponse ? err.error?.error : null;
-      this.errorMsg.set(backendMessage ?? "Couldn't build next week — try again.");
-    } finally {
+    this.startElapsedTimer(Date.now());
+
+    let settled = false;
+    const finish = () => {
+      if (settled || myToken !== this.generationToken) return;
+      settled = true;
+      this.stopElapsedTimer();
       this.generatingNext.set(false);
+    };
+
+    const requestDone = this.programApi.generateNextWeek(program.id).then(
+      (nextWeek) => {
+        if (settled || myToken !== this.generationToken) return;
+        if (!program.weeks.some((w) => w.weekNumber === nextWeek.weekNumber)) {
+          program.weeks.push(nextWeek);
+        }
+        this.activeWeekIndex.set(program.weeks.length - 1);
+        finish();
+      },
+      (err) => {
+        if (settled || myToken !== this.generationToken) return;
+        const status = err instanceof HttpErrorResponse ? err.status : 0;
+        if (status !== 0 && status !== 409) {
+          // A real, non-transient failure -- no point waiting on it to resolve itself.
+          console.error(err);
+          const backendMessage = err instanceof HttpErrorResponse ? err.error?.error : null;
+          this.errorMsg.set(backendMessage ?? "Couldn't build next week — try again.");
+          finish();
+        }
+        // status 0 (connection dropped, e.g. a backgrounded mobile tab) or 409 (already
+        // generating -- a double-click, or a retry of a request that's still running) both mean
+        // the generation may still finish successfully server-side; let the poll below catch it.
+      }
+    );
+
+    const pollDone = this.watchGeneration(myToken, targetWeekNumber, undefined, 15000).then((outcome) => {
+      if (settled || myToken !== this.generationToken) return;
+      if (outcome === 'failed') {
+        this.errorMsg.set("Couldn't build next week — try again.");
+      } else if (outcome === 'timeout') {
+        this.errorMsg.set('Still working -- refresh in a bit to check.');
+      }
+      finish();
+    });
+
+    await Promise.all([requestDone, pollDone]);
+  }
+
+  /**
+   * Polls the active program until `targetWeekNumber` shows up (generation succeeded, or fell
+   * back to a copy of last week's plan -- either way a real week now exists), the server reports
+   * generation is no longer in progress with no such week (a genuine, non-recoverable failure), or
+   * polling runs out of attempts. Used both to watch a just-triggered generation and, on page load,
+   * to resume watching one that was already running when this tab started (or reloaded).
+   */
+  private async watchGeneration(
+    myToken: number,
+    targetWeekNumber: number,
+    startedAtIso: string | undefined,
+    initialDelayMs: number
+  ): Promise<'found' | 'failed' | 'timeout' | 'aborted'> {
+    if (startedAtIso) {
+      this.generatingNext.set(true);
+      this.errorMsg.set('');
+      this.startElapsedTimer(new Date(startedAtIso).getTime());
+    }
+
+    const INTERVAL_MS = 5000;
+    const MAX_ATTEMPTS = 30; // ~2.5 minutes of polling beyond the initial delay
+    if (initialDelayMs > 0) await sleep(initialDelayMs);
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (myToken !== this.generationToken) return 'aborted';
+      try {
+        const fresh = await this.programApi.getActiveProgram();
+        const found = fresh.weeks.find((w) => w.weekNumber === targetWeekNumber);
+        if (found) {
+          if (myToken === this.generationToken) {
+            this.program.set(fresh);
+            this.activeWeekIndex.set(fresh.weeks.length - 1);
+          }
+          return 'found';
+        }
+        if (!fresh.generationInProgress) {
+          return 'failed';
+        }
+      } catch {
+        // transient network hiccup while polling -- ignore and retry next interval
+      }
+      await sleep(INTERVAL_MS);
+    }
+    return 'timeout';
+  }
+
+  private startElapsedTimer(startedAtMs: number) {
+    this.stopElapsedTimer();
+    this.elapsedSeconds.set(Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)));
+    this.elapsedTimerId = setInterval(() => {
+      this.elapsedSeconds.set(Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)));
+    }, 1000);
+  }
+
+  private stopElapsedTimer() {
+    if (this.elapsedTimerId !== null) {
+      clearInterval(this.elapsedTimerId);
+      this.elapsedTimerId = null;
     }
   }
 }
@@ -250,4 +378,8 @@ function parseOrNull(value: string, parser: (s: string) => number): number | nul
   if (value.trim() === '') return null;
   const parsed = parser(value);
   return isNaN(parsed) ? null : parsed;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

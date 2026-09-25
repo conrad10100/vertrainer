@@ -38,6 +38,8 @@ export interface Program {
   experienceLevel: string;
   notes: string | null;
   weeks: Week[];
+  generationInProgress: boolean;
+  generationStartedAt: string | null;
 }
 
 export interface CreateProgramRequest {

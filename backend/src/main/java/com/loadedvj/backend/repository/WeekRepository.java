@@ -11,5 +11,7 @@ import java.util.UUID;
 public interface WeekRepository extends JpaRepository<Week, UUID> {
     Optional<Week> findTopByProgramIdOrderByWeekNumberDesc(UUID programId);
 
+    Optional<Week> findByProgramIdAndWeekNumber(UUID programId, int weekNumber);
+
     List<Week> findByProgramIdOrderByWeekNumberDesc(UUID programId, Pageable pageable);
 }

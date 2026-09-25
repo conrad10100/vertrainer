@@ -46,6 +46,9 @@ public class Program {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(name = "generation_started_at")
+    private Instant generationStartedAt;
+
     @OneToMany(mappedBy = "program", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("weekNumber ASC")
     private List<Week> weeks = new ArrayList<>();
@@ -72,6 +75,7 @@ public class Program {
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getGenerationStartedAt() { return generationStartedAt; }
     public List<Week> getWeeks() { return weeks; }
 
     public void addWeek(Week week) {

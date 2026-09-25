@@ -12,7 +12,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ProgramServiceTest {
 
-    private final ProgramService programService = new ProgramService(null, null, null, null, null, null, null);
+    private final ProgramService programService =
+        new ProgramService(null, null, null, null, null, null, null, null);
 
     @Test
     void returnsNullWhenNoSquatHasEverBeenLogged() {

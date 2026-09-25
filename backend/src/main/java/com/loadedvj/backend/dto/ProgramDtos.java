@@ -38,7 +38,7 @@ public final class ProgramDtos {
     public record ProgramResponse(
         UUID id, String programName, BigDecimal currentVertical, BigDecimal targetVertical,
         BigDecimal height, BigDecimal bodyweight, int daysPerWeek, String experienceLevel, String notes,
-        List<WeekResponse> weeks
+        List<WeekResponse> weeks, boolean generationInProgress, Instant generationStartedAt
     ) { }
 
     public record LogExerciseRequest(BigDecimal loggedWeight, Integer loggedReps) { }
