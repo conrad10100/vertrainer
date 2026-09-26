@@ -16,6 +16,8 @@ import com.loadedvj.backend.domain.Program;
 import com.loadedvj.backend.mesocycle.MesocycleCalculator;
 import com.loadedvj.backend.mesocycle.MesocycleCalculator.Phase;
 import com.loadedvj.backend.mesocycle.MesocycleCalculator.PhaseInfo;
+import com.loadedvj.backend.rag.KnowledgeRetrievalService;
+import com.loadedvj.backend.rag.KnowledgeVectorRepository.RetrievedChunk;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -32,14 +34,17 @@ public class ProgramGenerationService {
     private final String model;
     private final AiCallAuditLogService auditLogService;
     private final PromptTemplateService promptTemplateService;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
 
     public ProgramGenerationService(AnthropicClient client, @Value("${anthropic.model}") String model,
                                      AiCallAuditLogService auditLogService,
-                                     PromptTemplateService promptTemplateService) {
+                                     PromptTemplateService promptTemplateService,
+                                     KnowledgeRetrievalService knowledgeRetrievalService) {
         this.client = client;
         this.model = model;
         this.auditLogService = auditLogService;
         this.promptTemplateService = promptTemplateService;
+        this.knowledgeRetrievalService = knowledgeRetrievalService;
     }
 
     public ProgramCreationResult createFirstWeek(UUID userId, Program program) {
@@ -66,7 +71,7 @@ public class ProgramGenerationService {
             .build();
 
         int expectedDayCount = program.getDaysPerWeek();
-        return callAndAudit(userId, "CREATE_FIRST_WEEK", prompts.version(), system, user, params,
+        return callAndAudit(userId, "CREATE_FIRST_WEEK", prompts.version(), system, user, params, null,
             r -> validateFirstWeek(r, expectedDayCount));
     }
 
@@ -79,9 +84,15 @@ public class ProgramGenerationService {
         Phase phase = info.phase();
 
         PromptSet prompts = promptTemplateService.load(
-            "coach_persona", "generate_next_week_system", "generate_next_week_user");
+            "coach_persona", "generate_next_week_system", "generate_next_week_user",
+            "generate_next_week_knowledge");
 
-        String system = prompts.get("coach_persona") + prompts.get("generate_next_week_system").formatted(
+        List<RetrievedChunk> retrievedKnowledge = knowledgeRetrievalService.retrieveForPhase(
+            phase.name(), phase.description());
+        String knowledgeBlock = retrievedKnowledge.isEmpty() ? "" : prompts.get("generate_next_week_knowledge")
+            .formatted(KnowledgeRetrievalService.formatForPrompt(retrievedKnowledge));
+
+        String system = prompts.get("coach_persona") + knowledgeBlock + prompts.get("generate_next_week_system").formatted(
             nextWeekNumber, info.cycleNumber(), phase.name(), phase.description(),
             info.isDeload()
                 ? " -- this is a DELOAD week: reduce volume (fewer sets, or drop 1-2 top sets) while "
@@ -111,6 +122,7 @@ public class ProgramGenerationService {
 
         int expectedDayCount = program.getDaysPerWeek();
         return callAndAudit(userId, "GENERATE_NEXT_WEEK", prompts.version(), system, user, params,
+            KnowledgeRetrievalService.chunkIdsCsv(retrievedKnowledge),
             r -> validateDays(r.days(), expectedDayCount));
     }
 
@@ -139,7 +151,7 @@ public class ProgramGenerationService {
             .addUserMessage(user)
             .build();
 
-        return callAndAudit(userId, "SWAP_EXERCISE", prompts.version(), system, user, params, r -> null);
+        return callAndAudit(userId, "SWAP_EXERCISE", prompts.version(), system, user, params, null, r -> null);
     }
 
     /**
@@ -153,7 +165,7 @@ public class ProgramGenerationService {
      */
     private <T> T callAndAudit(UUID userId, String operation, String promptVersion, String systemPrompt,
                                 String userPrompt, StructuredMessageCreateParams<T> params,
-                                Function<T, String> validator) {
+                                String retrievedKnowledgeChunkIds, Function<T, String> validator) {
         long startNanos = System.nanoTime();
         StructuredMessage<T> response = client.messages().create(params);
         long latencyMs = (System.nanoTime() - startNanos) / 1_000_000;
@@ -168,6 +180,7 @@ public class ProgramGenerationService {
         auditEntry.setLatencyMs(latencyMs);
         auditEntry.setInputTokens(response.usage().inputTokens());
         auditEntry.setOutputTokens(response.usage().outputTokens());
+        auditEntry.setRetrievedKnowledgeChunkIds(retrievedKnowledgeChunkIds);
 
         Optional<StructuredTextBlock<T>> block = response.content().stream()
             .flatMap(b -> b.text().stream())
