@@ -3,13 +3,13 @@ package com.loadedvj.backend.rag;
 import com.loadedvj.backend.rag.KnowledgeVectorRepository.RetrievedChunk;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -27,9 +27,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ddl-auto=create-drop still generates every other entity's table the normal way; only the
  * embedding column (unmapped in the KnowledgeChunk entity -- see its class comment) and the
  * extension are added by hand in setUp(), matching what schema.sql does in production.
+ * @Transactional wraps each test (setUp, the test method, and cleanup) in one rolled-back
+ * transaction -- needed because a native executeUpdate() requires an active transaction, and it
+ * conveniently means test data never needs manual cleanup between tests.
  */
 @Testcontainers
 @SpringBootTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@Transactional
 class KnowledgeVectorRepositoryTest {
 
     @Container
@@ -57,12 +61,6 @@ class KnowledgeVectorRepositoryTest {
         entityManager.createNativeQuery("create extension if not exists vector").executeUpdate();
         entityManager.createNativeQuery(
             "alter table knowledge_chunk add column if not exists embedding vector(3)").executeUpdate();
-    }
-
-    @AfterEach
-    void tearDown() {
-        chunkRepository.deleteAll();
-        sourceRepository.deleteAll();
     }
 
     @Test
