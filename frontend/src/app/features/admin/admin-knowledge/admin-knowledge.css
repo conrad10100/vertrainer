@@ -1,0 +1,25 @@
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.mode-tabs .secondary-btn.active {
+  background: var(--brass);
+  color: var(--graphite);
+}
+
+.ingest-result {
+  margin-top: 18px;
+}
+
+.ingest-result ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--chalk);
+}
+
+.ingest-result li {
+  margin-bottom: 4px;
+}
