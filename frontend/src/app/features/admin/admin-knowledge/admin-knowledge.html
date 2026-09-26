@@ -1,0 +1,74 @@
+<div class="hero">
+  <p class="eyebrow">Admin</p>
+  <h1>Add training <span>knowledge.</span></h1>
+  <p class="sub">Drop in a study, paste a YouTube URL, or upload a PDF. Claude tags and chunks it, then it's available to the program generator.</p>
+</div>
+
+<div class="clipboard">
+  <div class="chip-row mode-row">
+    <div class="chip" [class.active]="mode() === 'text'" (click)="setMode('text')">Text</div>
+    <div class="chip" [class.active]="mode() === 'youtube'" (click)="setMode('youtube')">YouTube</div>
+    <div class="chip" [class.active]="mode() === 'pdf'" (click)="setMode('pdf')">PDF</div>
+  </div>
+
+  <form (ngSubmit)="submit()">
+    @if (mode() === 'text') {
+      <div class="field">
+        <label>Title</label>
+        <input type="text" name="title" [(ngModel)]="title" placeholder="e.g. RFD and plyometric transfer" required />
+      </div>
+      <div class="field">
+        <label>Text</label>
+        <textarea name="text" [(ngModel)]="text" placeholder="Paste the study or notes here..." rows="10" required></textarea>
+      </div>
+    } @else if (mode() === 'youtube') {
+      <div class="field">
+        <label>YouTube URL</label>
+        <input type="text" name="youtubeUrl" [(ngModel)]="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." required />
+      </div>
+    } @else {
+      <div class="field">
+        <label>PDF file</label>
+        <label class="dropzone" [class.has-file]="selectedFile">
+          <input type="file" accept="application/pdf" (change)="onFileSelected($event)" required />
+          @if (selectedFile) {
+            <span class="dropzone-filename">📄 {{ selectedFile.name }}</span>
+          } @else {
+            <span>Click to choose a PDF, or drag one here</span>
+          }
+        </label>
+      </div>
+    }
+
+    <button
+      class="go-btn"
+      type="submit"
+      [disabled]="submitting() || (mode() === 'text' && (!title || !text)) || (mode() === 'youtube' && !youtubeUrl) || (mode() === 'pdf' && !selectedFile)"
+    >
+      @if (submitting()) {
+        <span class="mini-spin"></span>Ingesting...
+      } @else {
+        Ingest
+      }
+    </button>
+
+    @if (errorMsg()) {
+      <div class="error-box">{{ errorMsg() }}</div>
+    }
+  </form>
+</div>
+
+@if (result(); as r) {
+  <div class="chart-card ingest-result">
+    <p class="chart-title">Ingested {{ r.chunkCount }} chunk{{ r.chunkCount === 1 ? '' : 's' }}</p>
+    <ul class="chunk-list">
+      @for (chunk of r.chunks; track chunk.chunkId) {
+        <li>
+          <span class="phase-chip">{{ chunk.phase ?? 'General' }}</span>
+          <span class="chunk-topic">{{ chunk.topic }}</span>
+          <span class="chunk-gist">{{ chunk.gist }}</span>
+        </li>
+      }
+    </ul>
+  </div>
+}
