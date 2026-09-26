@@ -62,6 +62,9 @@ public class AiCallAuditLog {
     @Column(name = "latency_ms", nullable = false)
     private long latencyMs;
 
+    @Column(name = "retrieved_knowledge_chunk_ids")
+    private String retrievedKnowledgeChunkIds;
+
     public UUID getId() { return id; }
     public Instant getCreatedAt() { return createdAt; }
     public UUID getUserId() { return userId; }
@@ -88,4 +91,8 @@ public class AiCallAuditLog {
     public void setOutputTokens(Long outputTokens) { this.outputTokens = outputTokens; }
     public long getLatencyMs() { return latencyMs; }
     public void setLatencyMs(long latencyMs) { this.latencyMs = latencyMs; }
+    public String getRetrievedKnowledgeChunkIds() { return retrievedKnowledgeChunkIds; }
+    public void setRetrievedKnowledgeChunkIds(String retrievedKnowledgeChunkIds) {
+        this.retrievedKnowledgeChunkIds = retrievedKnowledgeChunkIds;
+    }
 }
