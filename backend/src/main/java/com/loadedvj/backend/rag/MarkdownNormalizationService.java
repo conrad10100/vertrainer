@@ -33,7 +33,7 @@ public class MarkdownNormalizationService {
         }
         StructuredMessageCreateParams<NormalizedDocument> params = MessageCreateParams.builder()
             .model(model)
-            .maxTokens(16000L)
+            .maxTokens(64000L)
             .outputConfig(NormalizedDocument.class)
             .addUserMessage(rawText)
             .build();
