@@ -17,6 +17,7 @@
       <a routerLink="/dashboard" routerLinkActive="active" (click)="closeMenu()">Dashboard</a>
       @if (isAdmin()) {
         <a routerLink="/admin" routerLinkActive="active" (click)="closeMenu()">Admin</a>
+        <a routerLink="/admin/knowledge" routerLinkActive="active" (click)="closeMenu()">Knowledge</a>
       }
       <button class="link-btn" (click)="logout()">Log out</button>
     </div>
