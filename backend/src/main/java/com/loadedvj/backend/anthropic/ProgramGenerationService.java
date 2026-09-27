@@ -76,8 +76,7 @@ public class ProgramGenerationService {
     }
 
     /** Pairs the generated week with the knowledge chunks retrieval fed into its prompt, so the
-     * caller can surface what RAG actually found -- purely for the caller to display; nothing here
-     * persists it. */
+     * caller can persist and surface what RAG actually found (e.g. onto the saved Week entity). */
     public record NextWeekGeneration(NextWeekResult result, List<RetrievedChunk> retrievedKnowledge) { }
 
     public NextWeekGeneration generateNextWeek(UUID userId, Program program, int nextWeekNumber, String logSummary,

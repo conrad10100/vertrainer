@@ -38,6 +38,12 @@ public class Week {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    /** Comma-separated knowledge_chunk ids retrieved for this week's generation, or null if
+     * nothing was retrieved (or this week predates the RAG layer). Persisted so which knowledge
+     * informed the plan survives a page refresh -- see KnowledgeRetrievalService.chunkIdsCsv. */
+    @Column(name = "retrieved_knowledge_chunk_ids", columnDefinition = "text")
+    private String retrievedKnowledgeChunkIds;
+
     @OneToMany(mappedBy = "week", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("dayIndex ASC")
     private List<Day> days = new ArrayList<>();
@@ -56,6 +62,8 @@ public class Week {
     public boolean isDeload() { return deload; }
     public void setDeload(boolean deload) { this.deload = deload; }
     public Instant getCreatedAt() { return createdAt; }
+    public String getRetrievedKnowledgeChunkIds() { return retrievedKnowledgeChunkIds; }
+    public void setRetrievedKnowledgeChunkIds(String retrievedKnowledgeChunkIds) { this.retrievedKnowledgeChunkIds = retrievedKnowledgeChunkIds; }
     public List<Day> getDays() { return days; }
 
     public void addDay(Day day) {
