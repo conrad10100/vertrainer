@@ -15,6 +15,14 @@
 
 * { box-sizing: border-box; }
 
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--brass-dim);
+  outline-offset: 2px;
+}
+
 html, body {
   margin: 0;
   background: var(--ink);
@@ -56,15 +64,63 @@ html, body {
 .top-nav button.link-btn {
   background: none;
   border: none;
+  border-left: 1px solid var(--line);
   color: var(--graphite);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12.5px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
-  padding: 0;
+  padding: 0 0 0 18px;
+  margin-left: -4px;
 }
 .top-nav button.link-btn:hover { color: var(--flag); }
+
+.nav-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+}
+.nav-toggle span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--chalk);
+  transition: transform .15s ease, opacity .15s ease;
+}
+.nav-toggle.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-toggle.open span:nth-child(2) { opacity: 0; }
+.nav-toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+@media (max-width: 700px) {
+  .nav-toggle { display: flex; }
+  .top-nav { flex-wrap: wrap; position: relative; }
+  .top-nav .links {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .top-nav .links.open { display: flex; }
+  .top-nav .links a,
+  .top-nav .links button.link-btn {
+    padding: 12px 4px;
+    border-left: none;
+    border-top: 1px solid var(--line);
+    margin-left: 0;
+    text-align: left;
+  }
+  .top-nav .links a:first-child { border-top: none; }
+}
 
 .hero { margin-bottom: 40px; }
 .eyebrow {
