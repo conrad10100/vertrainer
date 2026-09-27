@@ -75,7 +75,12 @@ public class ProgramGenerationService {
             r -> validateFirstWeek(r, expectedDayCount));
     }
 
-    public NextWeekResult generateNextWeek(UUID userId, Program program, int nextWeekNumber, String logSummary,
+    /** Pairs the generated week with the knowledge chunks retrieval fed into its prompt, so the
+     * caller can surface what RAG actually found -- purely for the caller to display; nothing here
+     * persists it. */
+    public record NextWeekGeneration(NextWeekResult result, List<RetrievedChunk> retrievedKnowledge) { }
+
+    public NextWeekGeneration generateNextWeek(UUID userId, Program program, int nextWeekNumber, String logSummary,
                                             String dayNotesSummary, String checkinSummary,
                                             String adherenceSummary, BigDecimal bestSquatWeight) {
         PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
@@ -121,9 +126,10 @@ public class ProgramGenerationService {
             .build();
 
         int expectedDayCount = program.getDaysPerWeek();
-        return callAndAudit(userId, "GENERATE_NEXT_WEEK", prompts.version(), system, user, params,
+        NextWeekResult result = callAndAudit(userId, "GENERATE_NEXT_WEEK", prompts.version(), system, user, params,
             KnowledgeRetrievalService.chunkIdsCsv(retrievedKnowledge),
             r -> validateDays(r.days(), expectedDayCount));
+        return new NextWeekGeneration(result, retrievedKnowledge);
     }
 
     public ExerciseGen swapExercise(UUID userId, Program program, String dayFocus, String dayLabel,

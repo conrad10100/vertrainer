@@ -6,6 +6,7 @@ import com.loadedvj.backend.anthropic.GenerationModels.ExerciseGen;
 import com.loadedvj.backend.anthropic.GenerationModels.NextWeekResult;
 import com.loadedvj.backend.anthropic.GenerationModels.ProgramCreationResult;
 import com.loadedvj.backend.anthropic.ProgramGenerationService;
+import com.loadedvj.backend.anthropic.ProgramGenerationService.NextWeekGeneration;
 import com.loadedvj.backend.domain.Day;
 import com.loadedvj.backend.domain.Exercise;
 import com.loadedvj.backend.domain.Program;
@@ -144,11 +145,15 @@ public class ProgramService {
 
             PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
             Week week;
+            List<RetrievedKnowledgeSummary> retrievedKnowledge = List.of();
             try {
-                NextWeekResult result = withGenerationRetry(() -> generationService.generateNextWeek(userId,
+                NextWeekGeneration generation = withGenerationRetry(() -> generationService.generateNextWeek(userId,
                     program, nextWeekNumber, logSummary, dayNotesSummary, checkinSummary, adherenceSummary,
                     bestSquatWeight));
-                week = buildWeek(nextWeekNumber, info, result.days());
+                week = buildWeek(nextWeekNumber, info, generation.result().days());
+                retrievedKnowledge = generation.retrievedKnowledge().stream()
+                    .map(c -> new RetrievedKnowledgeSummary(c.topic(), c.gist()))
+                    .toList();
             } catch (GenerationFailedException e) {
                 // Every attempt already failed our eval rules and was retried once (see
                 // withGenerationRetry) -- rather than leaving the athlete with no plan at all, fall
@@ -161,7 +166,7 @@ public class ProgramService {
             program.addWeek(week);
             programRepository.save(program);
 
-            return toWeekResponse(week);
+            return toWeekResponse(week, retrievedKnowledge);
         } finally {
             generationLockService.release(programId);
         }
@@ -434,9 +439,13 @@ public class ProgramService {
     }
 
     private WeekResponse toWeekResponse(Week week) {
+        return toWeekResponse(week, List.of());
+    }
+
+    private WeekResponse toWeekResponse(Week week, List<RetrievedKnowledgeSummary> retrievedKnowledge) {
         return new WeekResponse(week.getId(), week.getWeekNumber(), week.getCyclePosition(),
             week.getCycleNumber(), week.getPhase(), week.isDeload(),
-            week.getDays().stream().map(this::toDayResponse).toList());
+            week.getDays().stream().map(this::toDayResponse).toList(), retrievedKnowledge);
     }
 
     private DayResponse toDayResponse(Day day) {
