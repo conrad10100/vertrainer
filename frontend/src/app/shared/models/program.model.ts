@@ -17,6 +17,11 @@ export interface Day {
   exercises: Exercise[];
 }
 
+export interface RetrievedKnowledgeSummary {
+  topic: string;
+  gist: string;
+}
+
 export interface Week {
   id: string;
   weekNumber: number;
@@ -25,6 +30,7 @@ export interface Week {
   phase: string;
   deload: boolean;
   days: Day[];
+  retrievedKnowledge?: RetrievedKnowledgeSummary[];
 }
 
 export interface Program {

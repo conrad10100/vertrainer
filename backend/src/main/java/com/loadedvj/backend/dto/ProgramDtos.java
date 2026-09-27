@@ -30,9 +30,11 @@ public final class ProgramDtos {
         UUID id, String dayLabel, String focus, String athleteNote, List<ExerciseResponse> exercises
     ) { }
 
+    public record RetrievedKnowledgeSummary(String topic, String gist) { }
+
     public record WeekResponse(
         UUID id, int weekNumber, int cyclePosition, int cycleNumber, String phase, boolean deload,
-        List<DayResponse> days
+        List<DayResponse> days, List<RetrievedKnowledgeSummary> retrievedKnowledge
     ) { }
 
     public record ProgramResponse(

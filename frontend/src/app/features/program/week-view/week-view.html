@@ -27,6 +27,22 @@
 
   <app-phase-badge [cycleNumber]="week.cycleNumber" [phase]="week.phase" [deload]="week.deload" />
 
+  @if (week.retrievedKnowledge && week.retrievedKnowledge.length > 0) {
+    <details class="knowledge-used">
+      <summary>Used {{ week.retrievedKnowledge.length }} knowledge base note{{
+        week.retrievedKnowledge.length === 1 ? '' : 's'
+      }} to build this week</summary>
+      <ul class="chunk-list">
+        @for (k of week.retrievedKnowledge; track k.topic + k.gist) {
+          <li>
+            <span class="chunk-topic">{{ k.topic }}</span>
+            <span class="chunk-gist">{{ k.gist }}</span>
+          </li>
+        }
+      </ul>
+    </details>
+  }
+
   <div class="week-tabs">
     @for (w of p.weeks; track w.id; let i = $index) {
       <button
