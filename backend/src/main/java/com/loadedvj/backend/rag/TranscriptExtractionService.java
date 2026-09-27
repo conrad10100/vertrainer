@@ -7,6 +7,8 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -29,9 +31,14 @@ public class TranscriptExtractionService {
     private static final Pattern CAPTION_TRACKS_PATTERN = Pattern.compile(
         "\"captionTracks\":(\\[.*?])");
 
+    // A cookie jar (shared across requests on this client) plus a preemptive CONSENT cookie on
+    // the watch-page request below skips YouTube's EU cookie-consent interstitial, which
+    // otherwise 302-redirects every unauthenticated request in a loop that never reaches the
+    // actual watch page -- HttpClient.Redirect.NORMAL alone can't get through that.
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .followRedirects(HttpClient.Redirect.NORMAL)
+        .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
         .build();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -45,9 +52,9 @@ public class TranscriptExtractionService {
 
     public String extractFromYoutube(String url) {
         String videoId = extractVideoId(url);
-        String watchPageHtml = get("https://www.youtube.com/watch?v=" + videoId);
+        String watchPageHtml = get("https://www.youtube.com/watch?v=" + videoId, "CONSENT=YES+1");
         String captionUrl = findCaptionTrackUrl(watchPageHtml);
-        String captionXml = get(captionUrl);
+        String captionXml = get(captionUrl, null);
         return stripCaptionMarkup(captionXml);
     }
 
@@ -108,16 +115,20 @@ public class TranscriptExtractionService {
             .orElse("");
     }
 
-    private String get(String url) {
+    private String get(String url, String cookie) {
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(20))
                 .header("User-Agent", "Mozilla/5.0")
-                .GET()
-                .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                .header("Accept-Language", "en-US,en;q=0.9");
+            if (cookie != null) {
+                builder.header("Cookie", cookie);
+            }
+            HttpResponse<String> response = httpClient.send(builder.GET().build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
-                throw new KnowledgeIngestionException("Request to " + url + " returned HTTP " + response.statusCode());
+                String location = response.headers().firstValue("Location").orElse("none");
+                throw new KnowledgeIngestionException(
+                    "Request to " + url + " returned HTTP " + response.statusCode() + " (Location: " + location + ")");
             }
             return response.body();
         } catch (IOException | InterruptedException e) {
