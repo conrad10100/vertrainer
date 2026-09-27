@@ -3,6 +3,7 @@ package com.loadedvj.backend.rag;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +22,7 @@ public class KnowledgeVectorRepository {
     private EntityManager entityManager;
 
     /** Attaches an embedding to an already-saved chunk. */
+    @Transactional
     public void setEmbedding(UUID chunkId, float[] embedding) {
         entityManager.createNativeQuery(
                 "update knowledge_chunk set embedding = cast(:vec as vector) where id = :id")
