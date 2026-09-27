@@ -11,8 +11,12 @@
   color: var(--brass);
 }
 
+.admin-users-table-wrap {
+  overflow-x: auto;
+}
 .admin-users-table {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
   font-size: 13.5px;
 }

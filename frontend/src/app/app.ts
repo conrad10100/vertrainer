@@ -16,6 +16,7 @@ export class App {
   private readonly adminApi = inject(AdminApi);
   protected readonly version = APP_VERSION;
   protected readonly isAdmin = signal(false);
+  protected readonly menuOpen = signal(false);
 
   constructor() {
     // Admin status is derived by whether the admin-only endpoint accepts us --
@@ -34,7 +35,16 @@ export class App {
   }
 
   async logout() {
+    this.menuOpen.set(false);
     await this.supabase.signOut();
     this.router.navigate(['/login']);
+  }
+
+  toggleMenu() {
+    this.menuOpen.update((open) => !open);
+  }
+
+  closeMenu() {
+    this.menuOpen.set(false);
   }
 }

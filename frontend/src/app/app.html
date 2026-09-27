@@ -1,13 +1,23 @@
 @if (supabase.session()) {
   <nav class="top-nav">
-    <a class="brand" routerLink="/program">Loaded<span>.</span> <span class="version">v{{ version }}</span></a>
-    <div class="links">
-      <a routerLink="/program" routerLinkActive="active">Program</a>
-      <a routerLink="/checkins" routerLinkActive="active">Check-in</a>
-      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+    <a class="brand" routerLink="/program">Loaded<span>.</span></a>
+    <button
+      type="button"
+      class="nav-toggle"
+      [class.open]="menuOpen()"
+      (click)="toggleMenu()"
+      [attr.aria-expanded]="menuOpen()"
+      aria-label="Toggle navigation menu"
+    >
+      <span></span><span></span><span></span>
+    </button>
+    <div class="links" [class.open]="menuOpen()">
+      <a routerLink="/program" routerLinkActive="active" (click)="closeMenu()">Program</a>
+      <a routerLink="/checkins" routerLinkActive="active" (click)="closeMenu()">Check-in</a>
+      <a routerLink="/dashboard" routerLinkActive="active" (click)="closeMenu()">Dashboard</a>
       @if (isAdmin()) {
-        <a routerLink="/admin" routerLinkActive="active">Admin</a>
-        <a routerLink="/admin/knowledge" routerLinkActive="active">Knowledge</a>
+        <a routerLink="/admin" routerLinkActive="active" (click)="closeMenu()">Admin</a>
+        <a routerLink="/admin/knowledge" routerLinkActive="active" (click)="closeMenu()">Knowledge</a>
       }
       <button class="link-btn" (click)="logout()">Log out</button>
     </div>
