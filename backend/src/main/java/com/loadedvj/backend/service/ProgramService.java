@@ -7,6 +7,9 @@ import com.loadedvj.backend.anthropic.GenerationModels.NextWeekResult;
 import com.loadedvj.backend.anthropic.GenerationModels.ProgramCreationResult;
 import com.loadedvj.backend.anthropic.ProgramGenerationService;
 import com.loadedvj.backend.anthropic.ProgramGenerationService.NextWeekGeneration;
+import com.loadedvj.backend.rag.KnowledgeChunk;
+import com.loadedvj.backend.rag.KnowledgeChunkRepository;
+import com.loadedvj.backend.rag.KnowledgeRetrievalService;
 import com.loadedvj.backend.domain.Day;
 import com.loadedvj.backend.domain.Exercise;
 import com.loadedvj.backend.domain.Program;
@@ -33,9 +36,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -56,12 +63,14 @@ public class ProgramService {
     private final ProgramGenerationService generationService;
     private final UsageLimitService usageLimitService;
     private final ProgramGenerationLockService generationLockService;
+    private final KnowledgeChunkRepository knowledgeChunkRepository;
 
     public ProgramService(ProgramRepository programRepository, WeekRepository weekRepository,
                            DayRepository dayRepository, ExerciseRepository exerciseRepository,
                            VerticalCheckinRepository checkinRepository,
                            ProgramGenerationService generationService, UsageLimitService usageLimitService,
-                           ProgramGenerationLockService generationLockService) {
+                           ProgramGenerationLockService generationLockService,
+                           KnowledgeChunkRepository knowledgeChunkRepository) {
         this.programRepository = programRepository;
         this.weekRepository = weekRepository;
         this.dayRepository = dayRepository;
@@ -70,6 +79,7 @@ public class ProgramService {
         this.generationService = generationService;
         this.usageLimitService = usageLimitService;
         this.generationLockService = generationLockService;
+        this.knowledgeChunkRepository = knowledgeChunkRepository;
     }
 
     public ProgramResponse createProgram(UUID userId, CreateProgramRequest req) {
@@ -145,15 +155,13 @@ public class ProgramService {
 
             PhaseInfo info = MesocycleCalculator.getPhaseInfo(nextWeekNumber);
             Week week;
-            List<RetrievedKnowledgeSummary> retrievedKnowledge = List.of();
             try {
                 NextWeekGeneration generation = withGenerationRetry(() -> generationService.generateNextWeek(userId,
                     program, nextWeekNumber, logSummary, dayNotesSummary, checkinSummary, adherenceSummary,
                     bestSquatWeight));
                 week = buildWeek(nextWeekNumber, info, generation.result().days());
-                retrievedKnowledge = generation.retrievedKnowledge().stream()
-                    .map(c -> new RetrievedKnowledgeSummary(c.topic(), c.gist()))
-                    .toList();
+                week.setRetrievedKnowledgeChunkIds(
+                    KnowledgeRetrievalService.chunkIdsCsv(generation.retrievedKnowledge()));
             } catch (GenerationFailedException e) {
                 // Every attempt already failed our eval rules and was retried once (see
                 // withGenerationRetry) -- rather than leaving the athlete with no plan at all, fall
@@ -166,7 +174,7 @@ public class ProgramService {
             program.addWeek(week);
             programRepository.save(program);
 
-            return toWeekResponse(week, retrievedKnowledge);
+            return toWeekResponse(week);
         } finally {
             generationLockService.release(programId);
         }
@@ -439,13 +447,27 @@ public class ProgramService {
     }
 
     private WeekResponse toWeekResponse(Week week) {
-        return toWeekResponse(week, List.of());
-    }
-
-    private WeekResponse toWeekResponse(Week week, List<RetrievedKnowledgeSummary> retrievedKnowledge) {
         return new WeekResponse(week.getId(), week.getWeekNumber(), week.getCyclePosition(),
             week.getCycleNumber(), week.getPhase(), week.isDeload(),
-            week.getDays().stream().map(this::toDayResponse).toList(), retrievedKnowledge);
+            week.getDays().stream().map(this::toDayResponse).toList(), retrievedKnowledgeFor(week));
+    }
+
+    /** Resolves a week's stored knowledge_chunk ids (if any) back to their topic/gist for display
+     * -- looked up fresh each time rather than denormalized onto the week, since chunks are the
+     * source of truth and this is cheap (at most TOP_K ids per week). */
+    private List<RetrievedKnowledgeSummary> retrievedKnowledgeFor(Week week) {
+        String csv = week.getRetrievedKnowledgeChunkIds();
+        if (csv == null || csv.isBlank()) {
+            return List.of();
+        }
+        List<UUID> chunkIds = Arrays.stream(csv.split(",")).map(UUID::fromString).toList();
+        Map<UUID, KnowledgeChunk> chunksById = knowledgeChunkRepository.findAllById(chunkIds).stream()
+            .collect(Collectors.toMap(KnowledgeChunk::getId, c -> c));
+        return chunkIds.stream()
+            .map(chunksById::get)
+            .filter(Objects::nonNull)
+            .map(c -> new RetrievedKnowledgeSummary(c.getTopic(), c.getGist()))
+            .toList();
     }
 
     private DayResponse toDayResponse(Day day) {

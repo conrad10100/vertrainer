@@ -9,6 +9,7 @@ import com.loadedvj.backend.repository.ExerciseRepository;
 import com.loadedvj.backend.repository.ProgramRepository;
 import com.loadedvj.backend.repository.VerticalCheckinRepository;
 import com.loadedvj.backend.repository.WeekRepository;
+import com.loadedvj.backend.rag.KnowledgeChunkRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -45,13 +46,14 @@ class ProgramServiceGenerateNextWeekTest {
     @Mock private ProgramGenerationService generationService;
     @Mock private UsageLimitService usageLimitService;
     @Mock private ProgramGenerationLockService generationLockService;
+    @Mock private KnowledgeChunkRepository knowledgeChunkRepository;
 
     private final UUID userId = UUID.randomUUID();
     private final UUID programId = UUID.randomUUID();
 
     private ProgramService newService() {
         return new ProgramService(programRepository, weekRepository, dayRepository, exerciseRepository,
-            checkinRepository, generationService, usageLimitService, generationLockService);
+            checkinRepository, generationService, usageLimitService, generationLockService, knowledgeChunkRepository);
     }
 
     @Test

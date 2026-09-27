@@ -26,6 +26,10 @@ create table public.weeks (
   phase          text not null,
   is_deload      boolean not null,
   created_at     timestamptz not null default now(),
+  -- Comma-separated knowledge_chunk ids retrieved for this week's generation (null when this
+  -- week predates the RAG layer or generation, or when nothing was retrieved), so which sources
+  -- informed the plan survives a page refresh instead of only existing in the live response.
+  retrieved_knowledge_chunk_ids text,
   unique (program_id, week_number)
 );
 create index idx_weeks_program_id on public.weeks(program_id);
