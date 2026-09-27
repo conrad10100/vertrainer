@@ -270,6 +270,11 @@ export class WeekView implements OnInit {
     const finish = () => {
       if (settled || myToken !== this.generationToken) return;
       settled = true;
+      // Bump the token so the other in-flight path (the poll racing the direct request, or vice
+      // versa) can no longer pass its own `myToken === this.generationToken` check and overwrite
+      // `program` with a redundant fetch -- one that would lack fields only the winning response
+      // carries, like the just-generated week's retrievedKnowledge.
+      this.generationToken++;
       this.stopElapsedTimer();
       this.generatingNext.set(false);
     };
