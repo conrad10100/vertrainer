@@ -101,6 +101,21 @@ class ChunkingServiceTest {
     }
 
     @Test
+    void transcriptChunkingIgnoresAOneOffAsideThatDoesntConfirmAShift() {
+        String squatTopic = ("Back squat depth matters for jump transfer. Hit parallel or below on every rep. "
+            + "Depth builds the stretch reflex you need for a real jump. Don't cut squats short in season. "
+            + "Progressive overload on the squat drives long term vertical gains over many training blocks. ")
+            .repeat(4);
+        String blip = "By the way, my dog needs a walk soon.";
+        String backToSquats = "Anyway, back to squat depth and how it drives your vertical.";
+
+        List<String> chunks = service.chunkTranscript(squatTopic + " " + blip + " " + backToSquats);
+
+        assertThat(chunks).hasSize(1);
+        assertThat(chunks.get(0)).contains("back to squat depth");
+    }
+
+    @Test
     void transcriptChunkingOverlapsOneSentenceAcrossABoundary() {
         String longTranscript = ("Back squat depth matters for jump transfer. Hit parallel or below on every rep. "
             + "Depth builds the stretch reflex you need for a real jump. Don't cut squats short in season. "

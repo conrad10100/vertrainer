@@ -42,26 +42,33 @@ public class ChunkingService {
         "get", "got", "going", "gonna", "know", "think", "want", "okay", "ok", "um", "uh", "yeah");
 
     /** Chunks a YouTube transcript via sentence-level sliding window with similarity-based
-     * boundaries, keeping one sentence of overlap across a break for continuity. */
+     * boundaries, keeping one sentence of overlap across a break for continuity. A low-similarity
+     * sentence only triggers a break once the sentence after it confirms the shift -- otherwise a
+     * single aside or transitional filler ("Okay, so...") could split a chunk that's really still
+     * on-topic. */
     public List<String> chunkTranscript(String text) {
         List<String> sentences = splitSentences(text);
         if (sentences.isEmpty()) {
             return List.of();
         }
+        List<Map<String, Integer>> sentenceFreqs = sentences.stream().map(ChunkingService::wordFrequencies).toList();
 
         List<String> chunks = new ArrayList<>();
         List<String> current = new ArrayList<>();
         Map<String, Integer> currentFreq = new HashMap<>();
         int currentWords = 0;
 
-        for (String sentence : sentences) {
-            Map<String, Integer> sentFreq = wordFrequencies(sentence);
+        for (int i = 0; i < sentences.size(); i++) {
+            String sentence = sentences.get(i);
+            Map<String, Integer> sentFreq = sentenceFreqs.get(i);
             int sentWords = wordCount(sentence);
 
             if (!current.isEmpty() && currentWords >= TRANSCRIPT_MIN_WORDS) {
                 boolean tooLarge = currentWords + sentWords > TRANSCRIPT_MAX_WORDS;
-                boolean topicShift = cosineSimilarity(currentFreq, sentFreq) < SIMILARITY_THRESHOLD;
-                if (tooLarge || topicShift) {
+                boolean shiftHere = cosineSimilarity(currentFreq, sentFreq) < SIMILARITY_THRESHOLD;
+                boolean nextConfirms = i + 1 >= sentences.size()
+                    || cosineSimilarity(currentFreq, sentenceFreqs.get(i + 1)) < SIMILARITY_THRESHOLD;
+                if (tooLarge || (shiftHere && nextConfirms)) {
                     chunks.add(String.join(" ", current));
                     List<String> overlap = current.subList(Math.max(0, current.size() - OVERLAP_SENTENCES), current.size());
                     current = new ArrayList<>(overlap);
