@@ -29,8 +29,8 @@ public class ChunkingService {
     // paragraph breaks the prose packer above relies on, and a coach can drift topic mid-paragraph,
     // so boundaries are picked from local lexical similarity between sentences rather than length
     // alone. Similarity is plain word-overlap (no embedding calls) so this stays free to run.
-    private static final int TRANSCRIPT_MIN_WORDS = 150;
-    private static final int TRANSCRIPT_MAX_WORDS = 400;
+    static final int TRANSCRIPT_MIN_WORDS = 150;
+    static final int TRANSCRIPT_MAX_WORDS = 400;
     private static final double SIMILARITY_THRESHOLD = 0.15;
     private static final int OVERLAP_SENTENCES = 1;
     private static final Pattern SENTENCE_BOUNDARY = Pattern.compile("(?<=[.!?])\\s+(?=[A-Z0-9\"'])");
@@ -91,14 +91,16 @@ public class ChunkingService {
         return chunks;
     }
 
-    private static List<String> splitSentences(String text) {
+    // Package-private (not private) so ChunkingQualityEvalTest can drive the real boundary logic
+    // instead of reimplementing it.
+    static List<String> splitSentences(String text) {
         return Arrays.stream(SENTENCE_BOUNDARY.split(text.trim()))
             .map(String::trim)
             .filter(s -> !s.isEmpty())
             .toList();
     }
 
-    private static Map<String, Integer> wordFrequencies(String sentence) {
+    static Map<String, Integer> wordFrequencies(String sentence) {
         Map<String, Integer> freq = new HashMap<>();
         for (String token : sentence.toLowerCase().split("[^a-z0-9']+")) {
             if (token.length() < 3 || STOPWORDS.contains(token)) {
@@ -116,7 +118,7 @@ public class ChunkingService {
     /** Cosine similarity over word-frequency vectors. Sentences with no scorable words (e.g. all
      * stopwords, or a lone "yeah") carry no signal either way, so they're treated as similar
      * rather than forced into a split. */
-    private static double cosineSimilarity(Map<String, Integer> a, Map<String, Integer> b) {
+    static double cosineSimilarity(Map<String, Integer> a, Map<String, Integer> b) {
         if (a.isEmpty() || b.isEmpty()) {
             return 1.0;
         }
@@ -196,7 +198,7 @@ public class ChunkingService {
         return result;
     }
 
-    private static int wordCount(String text) {
+    static int wordCount(String text) {
         return text.isBlank() ? 0 : text.trim().split("\\s+").length;
     }
 }
