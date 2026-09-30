@@ -69,4 +69,55 @@ class ChunkingServiceTest {
     private static long dataRowCount(String chunk) {
         return chunk.lines().skip(2).count();
     }
+
+    @Test
+    void transcriptChunkingKeepsRelatedSentencesTogetherBelowTheMinimum() {
+        String squatTopic = "Back squat depth matters for jump transfer. Hit parallel or below on every rep. "
+            + "Depth builds the stretch reflex you need for a real jump. Don't cut squats short in season.";
+
+        List<String> chunks = service.chunkTranscript(squatTopic);
+
+        assertThat(chunks).hasSize(1);
+        assertThat(chunks.get(0)).contains("Back squat depth").contains("cut squats short");
+    }
+
+    @Test
+    void transcriptChunkingSplitsOnATopicShiftOnceThePastMinimumSize() {
+        String squatTopic = ("Back squat depth matters for jump transfer. Hit parallel or below on every rep. "
+            + "Depth builds the stretch reflex you need for a real jump. Don't cut squats short in season. "
+            + "Progressive overload on the squat drives long term vertical gains over many training blocks. ")
+            .repeat(3);
+        String nutritionTopic = "Now let's talk about protein intake for recovery. Eat about one gram per pound "
+            + "of bodyweight daily. Recovery nutrition timing around lifting sessions also matters a lot for muscle repair.";
+
+        List<String> chunks = service.chunkTranscript(squatTopic + " " + nutritionTopic);
+
+        assertThat(chunks.size()).isGreaterThanOrEqualTo(2);
+        assertThat(chunks).anyMatch(c -> c.contains("Back squat depth"));
+        assertThat(chunks).anyMatch(c -> c.contains("Eat about one gram"));
+        // The topic-shift chunk (or its neighbor via overlap) should carry the nutrition content,
+        // not have it swallowed into a squat-heavy chunk.
+        assertThat(chunks.stream().anyMatch(c -> c.contains("Recovery nutrition timing"))).isTrue();
+    }
+
+    @Test
+    void transcriptChunkingOverlapsOneSentenceAcrossABoundary() {
+        String longTranscript = ("Back squat depth matters for jump transfer. Hit parallel or below on every rep. "
+            + "Depth builds the stretch reflex you need for a real jump. Don't cut squats short in season. "
+            + "Progressive overload on the squat drives long term vertical gains over many training blocks. ")
+            .repeat(3)
+            + "Now let's talk about protein intake for recovery. Eat about one gram per pound "
+            + "of bodyweight daily. Recovery nutrition timing around lifting sessions also matters a lot for muscle repair.";
+
+        List<String> chunks = service.chunkTranscript(longTranscript);
+
+        assertThat(chunks.size()).isGreaterThanOrEqualTo(2);
+        // Every boundary keeps one sentence of overlap, so consecutive chunks share content: the
+        // last sentence of chunk N should also open chunk N+1.
+        for (int i = 0; i < chunks.size() - 1; i++) {
+            String[] sentences = chunks.get(i).split("(?<=[.!?])\\s+");
+            String lastSentence = sentences[sentences.length - 1];
+            assertThat(chunks.get(i + 1)).startsWith(lastSentence);
+        }
+    }
 }
