@@ -38,7 +38,7 @@ export class WeekView implements OnInit {
   swappingKey = signal<string | null>(null);
   private readonly revealedWeightIds = new Set<string>();
 
-  private readonly drafts = new Map<string, { weight: string; reps: string }>();
+  private readonly drafts = new Map<string, { weight: string; reps: string; rpe: string }>();
   savingDayId = signal<string | null>(null);
   private readonly savedDayIds = signal<ReadonlySet<string>>(new Set());
 
@@ -148,12 +148,13 @@ export class WeekView implements OnInit {
   // Draft values are typed locally and only sent to the server when the athlete
   // taps "Save" for the day -- typing alone (with no explicit save) must not be
   // able to lose data, unlike the old save-on-blur behavior.
-  draftFor(ex: Exercise): { weight: string; reps: string } {
+  draftFor(ex: Exercise): { weight: string; reps: string; rpe: string } {
     let draft = this.drafts.get(ex.id);
     if (!draft) {
       draft = {
         weight: ex.loggedWeight != null ? String(ex.loggedWeight) : '',
         reps: ex.loggedReps != null ? String(ex.loggedReps) : '',
+        rpe: ex.loggedRpe != null ? String(ex.loggedRpe) : '',
       };
       this.drafts.set(ex.id, draft);
     }
@@ -187,8 +188,9 @@ export class WeekView implements OnInit {
           ? parseOrNull(draft.weight, parseFloat)
           : ex.loggedWeight;
         const reps = parseOrNull(draft.reps, (s) => parseInt(s, 10));
+        const rpe = parseOrNull(draft.rpe, (s) => parseInt(s, 10));
 
-        const updated = await this.programApi.logExercise(ex.id, weight, reps);
+        const updated = await this.programApi.logExercise(ex.id, weight, reps, rpe);
         if (week) {
           const idx = day.exercises.findIndex((e) => e.id === ex.id);
           if (idx !== -1) {

@@ -23,7 +23,7 @@ public final class ProgramDtos {
 
     public record ExerciseResponse(
         UUID id, String name, int sets, String reps, String targetWeight, String notes,
-        BigDecimal loggedWeight, Integer loggedReps
+        BigDecimal loggedWeight, Integer loggedReps, Integer loggedRpe
     ) { }
 
     public record DayResponse(
@@ -43,7 +43,9 @@ public final class ProgramDtos {
         List<WeekResponse> weeks, boolean generationInProgress, Instant generationStartedAt
     ) { }
 
-    public record LogExerciseRequest(BigDecimal loggedWeight, Integer loggedReps) { }
+    public record LogExerciseRequest(
+        BigDecimal loggedWeight, Integer loggedReps, @Min(1) @Max(10) Integer loggedRpe
+    ) { }
 
     public record SwapExerciseRequest(@NotBlank String requestText) { }
 

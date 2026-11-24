@@ -275,9 +275,11 @@ public class ProgramGenerationService {
 
         if (bestSquatWeight.compareTo(goal) >= 0) {
             return "Best logged squat: " + weightStr + " lb, at or above the ~" + goalStr + " lb "
-                + "2x-bodyweight goal (" + pct + "%) -- the squat-strength goal has been met. Shift primary "
+                + "2x-bodyweight goal (" + pct + "%) -- strength is up to standard. Shift primary "
                 + "bilateral-squat emphasis away from back squat toward front squat, box squat, and "
-                + "half/partial squat variations, and exercise selection can vary freely day to day.";
+                + "half/partial squat variations, and exercise selection can vary freely day to day. Heavy "
+                + "squat-pattern strength work should now make up a smaller share of the week -- shift that "
+                + "volume toward plyometric/power work such as trap bar jumps, depth jumps, and box jumps.";
         }
         if (bestSquatWeight.compareTo(frequencyThreshold) >= 0) {
             return "Best logged squat: " + weightStr + " lb, " + pct + "% of the ~" + goalStr + " lb "

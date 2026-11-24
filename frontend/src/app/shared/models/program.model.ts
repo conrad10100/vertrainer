@@ -7,6 +7,7 @@ export interface Exercise {
   notes: string | null;
   loggedWeight: number | null;
   loggedReps: number | null;
+  loggedRpe: number | null;
 }
 
 export interface Day {
