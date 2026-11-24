@@ -235,22 +235,26 @@ public class ProgramGenerationService {
         return validateDays(result.days(), expectedDayCount);
     }
 
+    private static final BigDecimal SQUAT_STANDARD_BODYWEIGHT_MULTIPLE = new BigDecimal("1.75");
+
     private static String squatTargetDisplay(Program program) {
         if (program.getBodyweight() == null) {
             return "unknown (bodyweight not provided)";
         }
-        BigDecimal target = program.getBodyweight().multiply(BigDecimal.valueOf(2));
-        return "~" + target.stripTrailingZeros().toPlainString() + " lb (2x bodyweight)";
+        BigDecimal target = program.getBodyweight().multiply(SQUAT_STANDARD_BODYWEIGHT_MULTIPLE);
+        return "~" + target.stripTrailingZeros().toPlainString() + " lb (1.75x bodyweight)";
     }
 
     /**
-     * Describes where the athlete stands on the squat-strength goal so the model can decide (a)
-     * whether back squat should still be the primary bilateral squat-pattern lift, and (b) whether
-     * a bilateral squat-pattern lift is still required on 2 different training days this week, or
-     * whether exercise selection can vary freely day to day. The 2x-bodyweight goal governs (a); a
-     * separate, lower 1.5x-bodyweight frequency threshold governs (b) -- below it, the twice-a-week
-     * requirement still applies, but between 1.5x and 2x bodyweight it's released even though back
-     * squat remains the primary lift.
+     * Describes where the athlete stands on the squat-strength standard so the model can decide
+     * (a) whether back squat should still be the primary bilateral squat-pattern lift and be
+     * progressed at normal pace, or whether strength is up to standard and should instead be
+     * maintained (only slow, modest further progression) while emphasis shifts to turning that
+     * strength into explosiveness, and (b) whether a bilateral squat-pattern lift is still required
+     * on 2 different training days this week, or whether exercise selection can vary freely day to
+     * day. The 1.75x-bodyweight standard governs (a); a separate, lower 1.5x-bodyweight frequency
+     * threshold governs (b) -- below it, the twice-a-week requirement still applies, but between
+     * 1.5x and 1.75x bodyweight it's released even though back squat remains the primary lift.
      */
     private static String squatProgressNote(Program program, BigDecimal bestSquatWeight) {
         if (bestSquatWeight == null) {
@@ -260,38 +264,42 @@ public class ProgramGenerationService {
         }
         if (program.getBodyweight() == null) {
             return "Best logged squat: " + bestSquatWeight.stripTrailingZeros().toPlainString()
-                + " lb (bodyweight not provided, so goal progress is unknown -- keep back squat as the "
+                + " lb (bodyweight not provided, so standard progress is unknown -- keep back squat as the "
                 + "primary bilateral squat-pattern lift, and keep a bilateral squat-pattern lift on at "
                 + "least 2 different training days this week).";
         }
-        BigDecimal goal = program.getBodyweight().multiply(BigDecimal.valueOf(2));
+        BigDecimal standard = program.getBodyweight().multiply(SQUAT_STANDARD_BODYWEIGHT_MULTIPLE);
         BigDecimal frequencyThreshold = program.getBodyweight().multiply(BigDecimal.valueOf(1.5));
-        int pct = goal.signum() > 0
-            ? (int) Math.round(bestSquatWeight.doubleValue() / goal.doubleValue() * 100)
+        int pct = standard.signum() > 0
+            ? (int) Math.round(bestSquatWeight.doubleValue() / standard.doubleValue() * 100)
             : 0;
         String weightStr = bestSquatWeight.stripTrailingZeros().toPlainString();
-        String goalStr = goal.stripTrailingZeros().toPlainString();
+        String standardStr = standard.stripTrailingZeros().toPlainString();
         String freqStr = frequencyThreshold.stripTrailingZeros().toPlainString();
 
-        if (bestSquatWeight.compareTo(goal) >= 0) {
-            return "Best logged squat: " + weightStr + " lb, at or above the ~" + goalStr + " lb "
-                + "2x-bodyweight goal (" + pct + "%) -- strength is up to standard. Shift primary "
+        if (bestSquatWeight.compareTo(standard) >= 0) {
+            return "Best logged squat: " + weightStr + " lb, at or above the ~" + standardStr + " lb "
+                + "1.75x-bodyweight standard (" + pct + "%) -- strength is up to standard. Keep a bilateral "
+                + "squat-pattern lift in the program to maintain this strength level, with only slow, modest "
+                + "load progression from here (don't apply the usual progressive-overload bands at full "
+                + "strength) -- the priority now is turning that strength into explosiveness. Shift primary "
                 + "bilateral-squat emphasis away from back squat toward front squat, box squat, and "
-                + "half/partial squat variations, and exercise selection can vary freely day to day. Heavy "
-                + "squat-pattern strength work should now make up a smaller share of the week -- shift that "
-                + "volume toward plyometric/power work such as trap bar jumps, depth jumps, and box jumps.";
+                + "half/partial squat variations, exercise selection can vary freely day to day, and a "
+                + "meaningfully larger share of weekly volume should move toward plyometric/power work such "
+                + "as trap bar jumps, depth jumps, and box jumps.";
         }
         if (bestSquatWeight.compareTo(frequencyThreshold) >= 0) {
-            return "Best logged squat: " + weightStr + " lb, " + pct + "% of the ~" + goalStr + " lb "
-                + "2x-bodyweight goal -- past the ~" + freqStr + " lb 1.5x-bodyweight frequency threshold, "
-                + "so a bilateral squat-pattern lift no longer needs to appear on a fixed number of days -- "
-                + "exercise selection can vary freely day to day. Back squat should still stay the primary "
-                + "bilateral squat-pattern lift until the full 2x-bodyweight goal above is reached.";
+            return "Best logged squat: " + weightStr + " lb, " + pct + "% of the ~" + standardStr + " lb "
+                + "1.75x-bodyweight standard -- past the ~" + freqStr + " lb 1.5x-bodyweight frequency "
+                + "threshold, so a bilateral squat-pattern lift no longer needs to appear on a fixed number "
+                + "of days -- exercise selection can vary freely day to day. Back squat should still stay "
+                + "the primary bilateral squat-pattern lift, progressing at normal pace, until the full "
+                + "1.75x-bodyweight standard above is reached.";
         }
-        return "Best logged squat: " + weightStr + " lb, " + pct + "% of the ~" + goalStr + " lb "
-            + "2x-bodyweight goal -- below the ~" + freqStr + " lb 1.5x-bodyweight frequency threshold, so "
-            + "keep back squat as the primary bilateral squat-pattern lift, appearing on at least 2 different "
-            + "training days this week.";
+        return "Best logged squat: " + weightStr + " lb, " + pct + "% of the ~" + standardStr + " lb "
+            + "1.75x-bodyweight standard -- below the ~" + freqStr + " lb 1.5x-bodyweight frequency "
+            + "threshold, so keep back squat as the primary bilateral squat-pattern lift, appearing on at "
+            + "least 2 different training days this week.";
     }
 
     private static String nullToNone(Object value) {
