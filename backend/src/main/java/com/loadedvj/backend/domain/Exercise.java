@@ -42,6 +42,9 @@ public class Exercise {
     @Column(name = "logged_reps")
     private Integer loggedReps;
 
+    @Column(name = "logged_rpe")
+    private Integer loggedRpe;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -64,5 +67,7 @@ public class Exercise {
     public void setLoggedWeight(BigDecimal loggedWeight) { this.loggedWeight = loggedWeight; }
     public Integer getLoggedReps() { return loggedReps; }
     public void setLoggedReps(Integer loggedReps) { this.loggedReps = loggedReps; }
+    public Integer getLoggedRpe() { return loggedRpe; }
+    public void setLoggedRpe(Integer loggedRpe) { this.loggedRpe = loggedRpe; }
     public Instant getCreatedAt() { return createdAt; }
 }
