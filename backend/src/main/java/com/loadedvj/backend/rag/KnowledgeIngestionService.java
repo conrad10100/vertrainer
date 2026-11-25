@@ -56,7 +56,9 @@ public class KnowledgeIngestionService {
 
     private IngestResult ingest(String sourceType, String origin, String title, String rawText) {
         String normalized = normalizationService.normalize(rawText);
-        List<String> chunkTexts = chunkingService.chunk(normalized);
+        List<String> chunkTexts = "youtube".equals(sourceType)
+            ? chunkingService.chunkTranscript(normalized)
+            : chunkingService.chunk(normalized);
         if (chunkTexts.isEmpty()) {
             throw new KnowledgeIngestionException("Nothing to ingest -- extracted text was empty after normalization");
         }
