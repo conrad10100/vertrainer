@@ -12,6 +12,13 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      # Testcontainers' bundled docker-java client (pinned via the 1.20.4 testcontainers-bom)
+      # probes the daemon with a hardcoded, very old default API version (1.32) before
+      # negotiating up -- newer Docker Engine releases on the runner image reject that outright
+      # ("client version 1.32 is too old") instead of negotiating, so pin a modern version here
+      # to skip the broken probe. Remove once testcontainers-bom is upgraded past this behavior.
+      DOCKER_API_VERSION: '1.44'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
