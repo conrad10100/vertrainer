@@ -96,6 +96,16 @@
                 <label>REPS</label>
                 <input type="text" inputmode="numeric" placeholder="reps" [(ngModel)]="draftFor(ex).reps" />
               </div>
+              <div class="log-field" [class.filled]="ex.loggedRpe !== null">
+                <label>RPE</label>
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="1-10"
+                  title="Rate of perceived exertion, 1-10"
+                  [(ngModel)]="draftFor(ex).rpe"
+                />
+              </div>
             </div>
 
             @if (openSwapKey() !== key) {

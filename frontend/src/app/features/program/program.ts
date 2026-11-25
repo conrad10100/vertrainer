@@ -21,9 +21,14 @@ export class ProgramApi {
     return firstValueFrom(this.http.post<Week>(`${this.base}/programs/${programId}/weeks/next`, {}));
   }
 
-  logExercise(exerciseId: string, loggedWeight: number | null, loggedReps: number | null): Promise<Exercise> {
+  logExercise(
+    exerciseId: string,
+    loggedWeight: number | null,
+    loggedReps: number | null,
+    loggedRpe: number | null
+  ): Promise<Exercise> {
     return firstValueFrom(
-      this.http.patch<Exercise>(`${this.base}/exercises/${exerciseId}/log`, { loggedWeight, loggedReps })
+      this.http.patch<Exercise>(`${this.base}/exercises/${exerciseId}/log`, { loggedWeight, loggedReps, loggedRpe })
     );
   }
 

@@ -184,6 +184,7 @@ public class ProgramService {
         Exercise exercise = requireOwnedExercise(userId, exerciseId);
         exercise.setLoggedWeight(req.loggedWeight());
         exercise.setLoggedReps(req.loggedReps());
+        exercise.setLoggedRpe(req.loggedRpe());
         return toExerciseResponse(exerciseRepository.save(exercise));
     }
 
@@ -209,6 +210,7 @@ public class ProgramService {
         exercise.setNotes(replacement.notes());
         exercise.setLoggedWeight(null);
         exercise.setLoggedReps(null);
+        exercise.setLoggedRpe(null);
 
         return toExerciseResponse(exerciseRepository.save(exercise));
     }
@@ -286,9 +288,11 @@ public class ProgramService {
             for (Exercise ex : day.getExercises()) {
                 String did = ex.getLoggedWeight() != null ? ex.getLoggedWeight().toString() : "not logged";
                 String reps = ex.getLoggedReps() != null ? ex.getLoggedReps().toString() : "not logged";
+                String rpe = ex.getLoggedRpe() != null ? ex.getLoggedRpe().toString() : "not logged";
                 sb.append("  - ").append(ex.getName()).append(": prescribed ").append(ex.getSets())
                     .append("x").append(ex.getReps()).append(" @ ").append(ex.getTargetWeight())
-                    .append(" -> actually did: ").append(did).append(" for ").append(reps).append(" reps\n");
+                    .append(" -> actually did: ").append(did).append(" for ").append(reps)
+                    .append(" reps at RPE ").append(rpe).append("\n");
             }
         }
         return sb.toString();
@@ -477,6 +481,7 @@ public class ProgramService {
 
     private ExerciseResponse toExerciseResponse(Exercise exercise) {
         return new ExerciseResponse(exercise.getId(), exercise.getName(), exercise.getSets(), exercise.getReps(),
-            exercise.getTargetWeight(), exercise.getNotes(), exercise.getLoggedWeight(), exercise.getLoggedReps());
+            exercise.getTargetWeight(), exercise.getNotes(), exercise.getLoggedWeight(), exercise.getLoggedReps(),
+            exercise.getLoggedRpe());
     }
 }

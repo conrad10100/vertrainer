@@ -21,7 +21,7 @@ public class ExerciseController {
 
     @PatchMapping("/api/exercises/{exerciseId}/log")
     public ExerciseResponse log(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID exerciseId,
-                                 @RequestBody LogExerciseRequest req) {
+                                 @Valid @RequestBody LogExerciseRequest req) {
         return programService.logExercise(userId(jwt), exerciseId, req);
     }
 
